@@ -1,0 +1,159 @@
+:root {
+    --primary-color: #1E88E5;
+    --background-color: #121212;
+    --card-background: #1E1E1E;
+    --text-color: #FFFFFF;
+    --error-color: #FF5252;
+    --success-color: #4CAF50;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Roboto', sans-serif;
+}
+
+body {
+    background-color: var(--background-color);
+    color: var(--text-color);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+#app {
+    flex: 1;
+}
+
+.page {
+    display: none;
+    padding: 20px;
+    height: 100vh;
+}
+
+.page.active {
+    display: block;
+}
+
+.background-container {
+    height: 100%;
+    background-image: url('../img/background.png');
+    background-size: cover;
+    background-position: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.card {
+    background-color: var(--card-background);
+    border-radius: 15px;
+    padding: 30px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    width: 100%;
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+h1, h2 {
+    text-align: center;
+    margin-bottom: 20px;
+    color: var(--text-color);
+}
+
+.button-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin: 20px 0;
+}
+
+.btn {
+    background-color: var(--primary-color);
+    color: var(--text-color);
+    border: none;
+    border-radius: 8px;
+    padding: 12px 24px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+}
+
+.btn:hover {
+    background-color: #1976D2;
+    transform: translateY(-2px);
+}
+
+.btn:disabled {
+    background-color: #666;
+    cursor: not-allowed;
+}
+
+.weight-display {
+    background-color: var(--primary-color);
+    padding: 30px;
+    border-radius: 12px;
+    text-align: center;
+    margin: 20px 0;
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.input-field {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #444;
+    border-radius: 8px;
+    background-color: #2C2C2C;
+    color: var(--text-color);
+    margin: 10px 0;
+}
+
+.saved-data {
+    margin: 15px 0;
+    padding: 10px;
+    background-color: #2C2C2C;
+    border-radius: 8px;
+    min-height: 50px;
+}
+
+#deviceSelect {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #444;
+    border-radius: 8px;
+    background-color: #2C2C2C;
+    color: var(--text-color);
+    margin: 15px 0;
+}
+
+.bluetooth-status {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    color: #666;
+}
+
+.bluetooth-status.connected {
+    color: var(--primary-color);
+}
+
+@media (max-width: 600px) {
+    .card {
+        margin: 10px;
+        padding: 20px;
+    }
+
+    .button-group {
+        flex-direction: column;
+    }
+
+    .btn {
+        width: 100%;
+        justify-content: center;
+    }
+} 
