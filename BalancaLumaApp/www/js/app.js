@@ -660,18 +660,13 @@ function saveData() {
         savedMeasurements.push(newMeasurement);
         localStorage.setItem('measurements', JSON.stringify(savedMeasurements));
         
-        // Adicionar ao display atual (página da balança)
-        const dataElement = document.createElement('div');
-        dataElement.textContent = `${bracelet}: ${weight}`;
-        savedData.appendChild(dataElement);
-        
         // Limpar campo do brinco
         braceletInput.value = '';
         vibrate([50, 50, 150]); // Vibração para indicar salvamento bem-sucedido
         
         // Feedback visual
         const feedback = document.createElement('div');
-        feedback.textContent = '✅ Dados salvos com sucesso!';
+        feedback.textContent = `✅ Peso de "${bracelet}" salvo no histórico!`;
         feedback.style.color = '#28a745';
         feedback.style.textAlign = 'center';
         feedback.style.padding = '10px';
@@ -694,35 +689,33 @@ function loadSavedData() {
         return;
     }
     
-    const savedMeasurements = JSON.parse(localStorage.getItem('measurements') || '[]');
+    // Apenas mostrar mensagem informativa na tela da balança
     savedData.innerHTML = '';
+    const infoText = document.createElement('div');
+    infoText.textContent = 'Os pesos salvos são exibidos na página de histórico.';
+    infoText.style.textAlign = 'center';
+    infoText.style.color = '#aaa';
+    infoText.style.padding = '10px';
+    savedData.appendChild(infoText);
     
-    // Mostrar apenas os últimos 3 registros na tela da balança
-    const recentMeasurements = savedMeasurements.slice(-3);
+    // Adicionar link para o histórico
+    const historyLink = document.createElement('div');
+    historyLink.innerHTML = '<button id="goto-history" class="btn btn-small">Ver Histórico</button>';
+    historyLink.style.textAlign = 'center';
+    historyLink.style.marginTop = '5px';
+    savedData.appendChild(historyLink);
     
-    recentMeasurements.forEach(measurement => {
-        const dataElement = document.createElement('div');
-        dataElement.textContent = `${measurement.bracelet}: ${measurement.weight}`;
-        savedData.appendChild(dataElement);
-    });
-    
-    if (recentMeasurements.length > 0) {
-        const totalText = document.createElement('div');
-        totalText.textContent = `Mostrando ${recentMeasurements.length} de ${savedMeasurements.length} registros`;
-        totalText.style.textAlign = 'center';
-        totalText.style.fontSize = '12px';
-        totalText.style.color = '#aaa';
-        totalText.style.marginTop = '5px';
-        savedData.appendChild(totalText);
-    } else if (savedMeasurements.length === 0) {
-        const emptyText = document.createElement('div');
-        emptyText.textContent = 'Nenhum dado salvo ainda';
-        emptyText.style.textAlign = 'center';
-        emptyText.style.color = '#aaa';
-        savedData.appendChild(emptyText);
-    }
-    
-    console.log("Dados carregados:", savedMeasurements.length);
+    // Adicionar evento para o botão
+    setTimeout(() => {
+        const gotoHistoryBtn = document.getElementById('goto-history');
+        if (gotoHistoryBtn) {
+            gotoHistoryBtn.addEventListener('click', function() {
+                vibrate(50);
+                showPage('historyPage');
+                loadHistory();
+            });
+        }
+    }, 100);
 }
 
 // Carregar histórico completo
@@ -878,57 +871,63 @@ function formatMacAddress(macAddress) {
 
 // Função para exportar dados para impressão via Bluetooth
 function exportDataForPrinting() {
-    console.log('Buscando impressoras Bluetooth...');
+    console.log('Iniciando exportação para impressão');
     
-    // Verificar se temos dados para imprimir
-    const savedMeasurements = JSON.parse(localStorage.getItem('measurements') || '[]');
-    if (savedMeasurements.length === 0) {
-        vibrate([50, 50, 50]); // Vibração curta de alerta
-        alert('Não há dados salvos para imprimir. Salve algumas medições primeiro.');
+    // Verificar se há medições salvas
+    const measurements = JSON.parse(localStorage.getItem('measurements') || '[]');
+    if (measurements.length === 0) {
+        alert('Não há medições salvas para imprimir!');
+        vibrate(500);
         return;
     }
     
-    // Mostrar um diálogo de carregamento
+    // Mostrar diálogo de carregamento enquanto procura dispositivos
     const loadingDialog = document.createElement('div');
     loadingDialog.className = 'loading-dialog';
     loadingDialog.innerHTML = `
         <div class="loading-content">
             <div class="loading-spinner"></div>
-            <p>Buscando impressoras Bluetooth...</p>
+            <p>Buscando dispositivos Bluetooth...</p>
         </div>
     `;
     document.body.appendChild(loadingDialog);
     
-    // Verificar e solicitar permissões
-    checkPermissions(permissionsGranted => {
-        if (!permissionsGranted) {
+    // Dispositivos temporários para acumular durante o scan
+    let foundDevices = {};
+    
+    // Escanear todos os dispositivos sem filtro (como na função startScan)
+    ble.scan([], 20, function(device) {
+        console.log('Dispositivo encontrado:', device);
+        // Armazenar no objeto temporário
+        if (!foundDevices[device.id]) {
+            foundDevices[device.id] = device;
+        }
+    }, function(error) {
+        console.error('Erro no escaneamento:', error);
+        if (loadingDialog) {
             document.body.removeChild(loadingDialog);
-            alert('É necessário conceder permissões de Bluetooth para encontrar impressoras.');
-            return;
+        }
+        alert('Erro ao buscar dispositivos Bluetooth: ' + (typeof error === 'string' ? error : JSON.stringify(error)));
+    });
+    
+    // Após o término do scan, mostrar diálogo de seleção
+    setTimeout(() => {
+        console.log(`Scan completo. Encontrados ${Object.keys(foundDevices).length} dispositivos.`);
+        
+        if (loadingDialog) {
+            document.body.removeChild(loadingDialog);
         }
         
-        // Escanear dispositivos Bluetooth
-        foundDevices = {};
-        vibrate(200); // Vibração longa para indicar início do escaneamento
-        
-        ble.scan([], 10, function(device) {
-            // Armazenar dispositivo encontrado
-            if (!foundDevices[device.id]) {
-                foundDevices[device.id] = device;
-                console.log('Dispositivo encontrado para impressão:', device);
-            }
-        }, function(error) {
-            document.body.removeChild(loadingDialog);
-            console.error('Erro ao buscar impressoras:', error);
-            alert('Erro ao buscar impressoras: ' + (typeof error === 'string' ? error : JSON.stringify(error)));
-        });
-        
-        // Após escanear, mostrar diálogo de seleção de impressora
-        setTimeout(() => {
-            document.body.removeChild(loadingDialog);
+        // Verificar se encontramos algo
+        if (Object.keys(foundDevices).length === 0) {
+            vibrate([100, 100, 100]); // Padrão de alerta
+            alert('Nenhum dispositivo Bluetooth encontrado. Verifique se suas impressoras estão ligadas e visíveis.');
+        } else {
+            // Mostrar diálogo para seleção de impressora
             showPrinterSelectionDialog(foundDevices);
-        }, 10000); // 10 segundos de escaneamento
-    });
+            vibrate([100, 50, 100]); // Padrão de conclusão
+        }
+    }, 21000); // Um segundo após o término do scan (que dura 20 segundos)
 }
 
 // Função para mostrar diálogo de seleção de impressora
@@ -940,25 +939,33 @@ function showPrinterSelectionDialog(devices) {
         return;
     }
     
+    // Ordenar dispositivos por nome
+    const sortedDevices = deviceList.sort((a, b) => {
+        const nameA = a.name || '';
+        const nameB = b.name || '';
+        return nameA.localeCompare(nameB);
+    });
+    
     // Criar diálogo de seleção de impressora
     const dialog = document.createElement('div');
     dialog.className = 'printer-selection-dialog';
     
     let dialogContent = `
         <div class="printer-selection-content">
-            <h3>Selecione uma Impressora</h3>
+            <h3>Selecione um Dispositivo</h3>
+            <p style="text-align: center; margin-bottom: 10px; color: #aaa;">
+                Toque em um dispositivo para imprimir
+            </p>
             <div class="printer-list">
     `;
     
     // Adicionar cada dispositivo à lista
-    deviceList.forEach(device => {
-        const deviceName = device.name || 'Dispositivo ' + formatMacAddress(device.id);
-        const signalStrength = device.rssi ? `(Sinal: ${device.rssi} dBm)` : '';
+    sortedDevices.forEach(device => {
+        const deviceName = device.name || 'Dispositivo Desconhecido';
         
         dialogContent += `
             <div class="printer-item" data-device-id="${device.id}">
                 <div class="printer-name">${deviceName}</div>
-                <div class="printer-info">${signalStrength}</div>
             </div>
         `;
     });
@@ -986,16 +993,16 @@ function showPrinterSelectionDialog(devices) {
             document.body.removeChild(dialog);
             
             // Tentar imprimir para o dispositivo selecionado
-            connectToPrinter(devices[deviceId]);
+            connectToBLEPrinter(devices[deviceId]);
         });
     });
 }
 
-// Função para tentar conectar e imprimir para uma impressora
-function connectToPrinter(device) {
-    console.log('Tentando conectar à impressora:', device);
+// Função para conectar a dispositivos e tentar imprimir
+function connectToBLEPrinter(device) {
+    console.log('Tentando conectar ao dispositivo:', device);
     
-    // Mostrar diálogo de carregamento
+    // Mostrar diálogo de carregamento enquanto conecta
     const loadingDialog = document.createElement('div');
     loadingDialog.className = 'loading-dialog';
     loadingDialog.innerHTML = `
@@ -1009,206 +1016,193 @@ function connectToPrinter(device) {
     // Tentar conectar ao dispositivo
     ble.connect(device.id, 
         function(peripheral) {
-            console.log('Conectado à impressora', peripheral);
+            console.log('Conectado ao dispositivo', peripheral);
             
-            // Verificar se o dispositivo é uma impressora
-            const isPrinter = isPrinterDevice(peripheral);
+            // Atualizar mensagem do diálogo de carregamento
+            loadingDialog.querySelector('p').textContent = 'Preparando impressão...';
             
-            if (isPrinter) {
-                // Preparar dados para impressão
-                prepareDataForPrinting(peripheral);
-            } else {
+            // Imprimir usando uma abordagem BLE direta
+            try {
+                // Obter os dados a serem impressos
+                const rawMeasurements = JSON.parse(localStorage.getItem('measurements') || '[]');
+                
+                // Ordenar por data (mais recente primeiro)
+                const savedMeasurements = [...rawMeasurements].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                
+                // Texto para impressão - NOVA FORMATAÇÃO
+                let printData = "\x1B\x40"; // ESC @ - Reset/inicializar impressora
+                printData += "\x1B\x61\x01"; // ESC a 1 - Centralizar
+                printData += "\x1D\x21\x11"; // GS ! 17 - Fonte um pouco maior e em negrito
+                printData += "RELATORIO DE PESAGEM\r\n";
+                printData += "LUMAK BALANCAS\r\n";
+                printData += "\x1D\x21\x00"; // GS ! 0 - Fonte normal
+                printData += "--------------------------------\r\n";
+                printData += "\x1B\x61\x00"; // ESC a 0 - Alinhar à esquerda
+                printData += "Data: " + new Date().toLocaleDateString('pt-BR') + "\r\n\r\n";
+                
+                // Cabeçalho com colunas bem definidas e sem quebra
+                printData += "BRINCO      PESO        DATA\r\n";
+                printData += "--------------------------------\r\n";
+                
+                // Limitar a quantidade de itens
+                const maxItems = Math.min(savedMeasurements.length, 15);
+                
+                // Adicionar cada medição - formato mais compacto
+                for (let i = 0; i < maxItems; i++) {
+                    const measurement = savedMeasurements[i];
+                    
+                    // Extrair apenas o valor numérico do peso
+                    let weightValue = measurement.weight;
+                    if (weightValue.includes('Peso:')) {
+                        weightValue = weightValue.replace('📊 Peso:', '').trim();
+                    }
+                    
+                    // Formatar a data para formato brasileiro curto (dia/mês)
+                    const dateTime = new Date(measurement.timestamp);
+                    const formattedDate = dateTime.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'});
+                    
+                    // Formatar como colunas fixas para evitar quebra de linha
+                    // Limitar e padronizar o tamanho de cada campo
+                    const bracelet = measurement.bracelet.padEnd(10).substring(0, 10);
+                    const weight = weightValue.padEnd(12).substring(0, 12);
+                    
+                    // Linha da tabela compactada para evitar quebra
+                    printData += `${bracelet}${weight}${formattedDate}\r\n`;
+                }
+                
+                // Rodapé centralizado
+                printData += "\r\n";
+                printData += "\x1B\x61\x01"; // ESC a 1 - Centralizar
+                printData += `Total: ${savedMeasurements.length} registros\r\n`;
+                printData += "App LUMAK Peso\r\n\r\n\r\n\r\n\r\n";
+                
+                // Corte de papel
+                printData += "\x1D\x56\x00"; // GS V 0 - Corte de papel
+                
+                // Enviar os bytes corretamente
+                const encoder = new TextEncoder();
+                const printBytes = encoder.encode(printData);
+                
+                // Usar serviços e características comuns para impressoras BLE
+                // Array de objetos com combinações de serviço e característica
+                const serviceCharPairs = [
+                    { service: "FFE0", characteristic: "FFE1" },
+                    { service: "FFF0", characteristic: "FFF1" },
+                    { service: "FFB0", characteristic: "FFB1" },
+                    { service: "18F0", characteristic: "2AF1" }
+                ];
+                
+                // Iniciar tentativas para cada par
+                let currentPairIndex = 0;
+                
+                // Iniciar barra de progresso
+                let progress = 0;
+                const progressInterval = setInterval(function() {
+                    progress += 5;
+                    if (progress <= 95) {
+                        loadingDialog.querySelector('p').textContent = `Enviando dados... ${progress}%`;
+                    }
+                }, 200);
+                
+                function tryNextPair() {
+                    if (currentPairIndex >= serviceCharPairs.length) {
+                        // Tentou todos os pares sem sucesso
+                        clearInterval(progressInterval);
+                        loadingDialog.querySelector('p').textContent = 'Falha na impressão';
+                        
+                        setTimeout(function() {
+                            document.body.removeChild(loadingDialog);
+                            ble.disconnect(peripheral.id);
+                            alert('Não foi possível encontrar um serviço compatível nesta impressora. Tente outro dispositivo.');
+                        }, 1000);
+                        return;
+                    }
+                    
+                    const currentPair = serviceCharPairs[currentPairIndex];
+                    console.log(`Tentando par ${currentPairIndex+1}/${serviceCharPairs.length}: Serviço=${currentPair.service}, Característica=${currentPair.characteristic}`);
+                    
+                    // Atualizar mensagem
+                    loadingDialog.querySelector('p').textContent = `Tentando método ${currentPairIndex+1}...`;
+                    
+                    // Enviar os dados em pequenos pedaços
+                    const chunkSize = 20; // Tamanho pequeno para compatibilidade
+                    let currentPosition = 0;
+                    
+                    function sendNextChunk() {
+                        if (currentPosition >= printBytes.length) {
+                            // Terminou de enviar este par com sucesso!
+                            clearInterval(progressInterval);
+                            loadingDialog.querySelector('p').textContent = 'Impressão concluída!';
+                            
+                            setTimeout(function() {
+                                ble.disconnect(peripheral.id);
+                                document.body.removeChild(loadingDialog);
+                                alert('Documento enviado para impressão com sucesso!');
+                            }, 1000);
+                            return;
+                        }
+                        
+                        // Calcular próximo pedaço
+                        const endPos = Math.min(currentPosition + chunkSize, printBytes.length);
+                        const chunk = printBytes.slice(currentPosition, endPos);
+                        
+                        // Tentar primeiro com writeWithoutResponse (mais comum em impressoras)
+                        ble.writeWithoutResponse(
+                            peripheral.id,
+                            currentPair.service,
+                            currentPair.characteristic,
+                            chunk.buffer,
+                            function() {
+                                // Sucesso, avançar para o próximo pedaço
+                                currentPosition = endPos;
+                                // Pequeno atraso entre os pedaços (100ms)
+                                setTimeout(sendNextChunk, 100);
+                            },
+                            function(error) {
+                                // Tentar com write normal
+                                ble.write(
+                                    peripheral.id,
+                                    currentPair.service,
+                                    currentPair.characteristic,
+                                    chunk.buffer,
+                                    function() {
+                                        // Sucesso com write
+                                        currentPosition = endPos;
+                                        setTimeout(sendNextChunk, 100);
+                                    },
+                                    function(error2) {
+                                        // Ambos falharam, tentar próximo par
+                                        console.error(`Erro ao enviar dados com par ${currentPairIndex+1}:`, error, error2);
+                                        currentPairIndex++;
+                                        tryNextPair();
+                                    }
+                                );
+                            }
+                        );
+                    }
+                    
+                    // Iniciar envio para este par
+                    sendNextChunk();
+                }
+                
+                // Iniciar tentativas
+                tryNextPair();
+                
+            } catch (error) {
+                console.error('Erro ao preparar impressão:', error);
                 document.body.removeChild(loadingDialog);
                 ble.disconnect(peripheral.id);
-                alert(`O dispositivo "${device.name || 'selecionado'}" não parece ser uma impressora Bluetooth.`);
+                alert('Erro ao preparar os dados para impressão: ' + error.message);
             }
         }, 
         function(error) {
-            document.body.removeChild(loadingDialog);
-            console.error('Falha na conexão com a impressora:', error);
-            alert('Não foi possível conectar à impressora: ' + (typeof error === 'string' ? error : JSON.stringify(error)));
+            console.error('Falha na conexão com o dispositivo:', error);
+            if (loadingDialog) {
+                document.body.removeChild(loadingDialog);
+            }
+            alert('Não foi possível conectar a este dispositivo. Verifique se ele está ligado e próximo.');
         }
     );
-}
-
-// Função para verificar se um dispositivo é uma impressora
-function isPrinterDevice(peripheral) {
-    // Tentar identificar impressoras com base nos serviços e características
-    // Esta é uma heurística simples, pois não há um padrão universal para impressoras BLE
-    if (peripheral.services) {
-        const printerServiceUUIDs = [
-            "18f0", // Impressoras genéricas
-            "1812", // HID (algumas impressoras usam)
-            "1800", // Impressoras térmicas
-            "1801", // SPP para impressoras
-            "e7810a71-73ae-499d-8c15-faa9aef0c3f2", // ESC/POS
-            "49535343-fe7d-4ae5-8fa9-9fafd205e455"  // Impressoras compatíveis com ISSC
-        ];
-        
-        for (const service of peripheral.services) {
-            const serviceUUID = service.toLowerCase();
-            for (const printerUUID of printerServiceUUIDs) {
-                if (serviceUUID.includes(printerUUID)) {
-                    console.log('Possível impressora detectada:', peripheral);
-                    return true;
-                }
-            }
-        }
-    }
-    
-    // Também verificamos pelo nome do dispositivo
-    if (peripheral.name) {
-        const name = peripheral.name.toLowerCase();
-        if (name.includes("print") || 
-            name.includes("impressora") || 
-            name.includes("escpos") || 
-            name.includes("epson") || 
-            name.includes("zebra") || 
-            name.includes("brother") || 
-            name.includes("hp") || 
-            name.includes("canon")) {
-            return true;
-        }
-    }
-    
-    // Se não conseguimos identificar positivamente, vamos considerar que não é uma impressora
-    return false;
-}
-
-// Função para preparar dados para impressão
-function prepareDataForPrinting(peripheral) {
-    console.log('Preparando dados para impressão');
-    
-    // Obter os dados a serem impressos
-    const rawMeasurements = JSON.parse(localStorage.getItem('measurements') || '[]');
-    
-    // Ordenar por data (mais recente primeiro)
-    const savedMeasurements = [...rawMeasurements].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-    
-    // Preparar comandos de impressão em formato ESC/POS (formato comum de impressoras térmicas)
-    // Iniciar formatação
-    let printData = new Uint8Array([
-        0x1B, 0x40,             // ESC @ - Inicializar impressora
-        0x1B, 0x21, 0x30,       // ESC ! 0 - Texto centralizado e grande
-        0x1B, 0x61, 0x01        // ESC a 1 - Alinhamento centralizado
-    ]);
-    
-    // Adicionar texto de cabeçalho
-    const headerText = "Relatório de Pesagem - LUMAK\n\n";
-    const headerBytes = textToBytes(headerText);
-    
-    // Adicionar data
-    const dateText = "Data: " + new Date().toLocaleDateString('pt-BR') + "\n\n";
-    const dateBytes = textToBytes(dateText);
-    
-    // Formatação de tabela
-    let tableBytes = textToBytes("-------------------------------------------\n");
-    tableBytes = concatTypedArrays(tableBytes, textToBytes("ID | BRINCO | PESO | DATA\n"));
-    tableBytes = concatTypedArrays(tableBytes, textToBytes("-------------------------------------------\n"));
-    
-    // Adicionar cada medição
-    let dataBytes = new Uint8Array(0);
-    savedMeasurements.forEach((measurement, index) => {
-        // Extrair apenas o valor numérico do peso
-        let weightValue = measurement.weight;
-        if (weightValue.includes('Peso:')) {
-            weightValue = weightValue.replace('📊 Peso:', '').trim();
-        }
-        
-        // Formatar a data para formato brasileiro
-        const dateTime = new Date(measurement.timestamp);
-        const formattedDate = dateTime.toLocaleDateString('pt-BR');
-        
-        // Linha da tabela
-        const line = `${index + 1} | ${measurement.bracelet} | ${weightValue} | ${formattedDate}\n`;
-        dataBytes = concatTypedArrays(dataBytes, textToBytes(line));
-    });
-    
-    // Rodapé
-    const footerBytes = textToBytes(`\nTotal: ${savedMeasurements.length} registros\n\nGerado pelo app LUMAK Peso\n\n\n\n`);
-    
-    // Concatenar todos os comandos e textos
-    printData = concatTypedArrays(printData, headerBytes);
-    printData = concatTypedArrays(printData, dateBytes);
-    printData = concatTypedArrays(printData, tableBytes);
-    printData = concatTypedArrays(printData, dataBytes);
-    printData = concatTypedArrays(printData, footerBytes);
-    
-    // Adicionar comando de corte de papel
-    const cutCommand = new Uint8Array([0x1D, 0x56, 0x41, 0x10]); // GS V A 16 - Corte parcial com alimentação de 16 linhas
-    printData = concatTypedArrays(printData, cutCommand);
-    
-    // Enviar dados para a impressora
-    sendPrintData(peripheral, printData);
-}
-
-// Função para converter texto para bytes
-function textToBytes(text) {
-    const encoder = new TextEncoder();
-    return encoder.encode(text);
-}
-
-// Função para concatenar arrays tipados
-function concatTypedArrays(a, b) {
-    const c = new Uint8Array(a.length + b.length);
-    c.set(a, 0);
-    c.set(b, a.length);
-    return c;
-}
-
-// Função para enviar dados para a impressora
-function sendPrintData(peripheral, data) {
-    console.log('Enviando dados para a impressora');
-    
-    // Tentar identificar as características de escrita da impressora
-    ble.services(peripheral.id, function(services) {
-        let found = false;
-        
-        // Procurar por uma característica que permita escrita
-        for (const service of services) {
-            ble.characteristics(peripheral.id, service, function(characteristics) {
-                for (const characteristic of characteristics) {
-                    // Verificar se a característica tem permissão de escrita
-                    if (characteristic.properties.includes('Write') || 
-                        characteristic.properties.includes('WriteWithoutResponse')) {
-                        
-                        console.log('Tentando escrever na característica:', characteristic.uuid);
-                        
-                        // Enviar dados para a impressora
-                        ble.write(
-                            peripheral.id,
-                            service,
-                            characteristic.uuid,
-                            data.buffer,
-                            function() {
-                                console.log('Dados enviados com sucesso para a impressora');
-                                document.querySelector('.loading-dialog').remove();
-                                ble.disconnect(peripheral.id);
-                                vibrate([100, 50, 100, 50, 100]);
-                                alert('Documento enviado para impressão com sucesso!');
-                                found = true;
-                            },
-                            function(error) {
-                                console.error('Erro ao enviar dados para impressora:', error);
-                                document.querySelector('.loading-dialog').remove();
-                                ble.disconnect(peripheral.id);
-                                alert('Erro ao enviar dados para impressora. Tente exportar como arquivo.');
-                            }
-                        );
-                        
-                        // Tentar apenas uma característica de cada vez
-                        return;
-                    }
-                }
-                
-                if (!found) {
-                    document.querySelector('.loading-dialog').remove();
-                    ble.disconnect(peripheral.id);
-                    alert('Não foi possível encontrar uma forma de enviar dados para este dispositivo. Ele pode não ser uma impressora compatível.');
-                }
-            });
-        }
-    });
 }
 
 // Função para exportar como arquivo
@@ -1507,4 +1501,623 @@ function downloadFallback(blob, fileName) {
         console.error('Erro ao fazer download:', error);
         alert('Erro ao baixar o arquivo: ' + error.message);
     }
+}
+
+// Função para solicitar permissão do Bluetooth
+function requestBluetoothPermission(successCallback, errorCallback) {
+    console.log('Solicitando permissões de Bluetooth');
+    
+    // Flag para acompanhar se o callback já foi chamado
+    let callbackCalled = false;
+    
+    // Verificar se estamos em um dispositivo móvel
+    if (!window.cordova) {
+        console.log('Não estamos em ambiente Cordova, assumindo permissões');
+        if (successCallback && !callbackCalled) {
+            callbackCalled = true;
+            successCallback();
+        }
+        return;
+    }
+    
+    // Verificar se o plugin de permissões está disponível
+    const permissions = cordova.plugins.permissions;
+    
+    // Se não tivermos o plugin de permissões ou estivermos no iOS (que gerencia permissões diferente)
+    if (!permissions || device.platform === 'iOS') {
+        console.log('Plugin de permissões não disponível ou iOS detectado, assumindo permissões concedidas');
+        if (successCallback && !callbackCalled) {
+            callbackCalled = true;
+            successCallback();
+        }
+        return;
+    }
+    
+    // Para Android, precisamos solicitar permissões específicas
+    // Lista de permissões necessárias baseadas na versão do Android
+    let requiredPermissions = [permissions.ACCESS_FINE_LOCATION];
+    
+    // Para Android 12+ (API 31+), adicionar novas permissões de Bluetooth
+    const sdkVersion = parseInt(device.version) || 0;
+    if (sdkVersion >= 31 && permissions.BLUETOOTH_SCAN) {
+        requiredPermissions = [
+            permissions.BLUETOOTH_SCAN,
+            permissions.BLUETOOTH_CONNECT,
+            permissions.ACCESS_FINE_LOCATION
+        ];
+    } else if (permissions.BLUETOOTH) {
+        // Para versões mais antigas do Android
+        requiredPermissions = [
+            permissions.BLUETOOTH,
+            permissions.BLUETOOTH_ADMIN,
+            permissions.ACCESS_FINE_LOCATION
+        ];
+    }
+    
+    // Função recursiva para verificar cada permissão
+    function checkNextPermission(index) {
+        // Se já concluímos todas as permissões, chamar o callback de sucesso
+        if (index >= requiredPermissions.length) {
+            console.log('Todas as permissões de Bluetooth concedidas');
+            if (successCallback && !callbackCalled) {
+                callbackCalled = true;
+                successCallback();
+            }
+            return;
+        }
+        
+        const permission = requiredPermissions[index];
+        
+        // Verificar se já temos a permissão
+        permissions.checkPermission(permission, function(status) {
+            if (status.hasPermission) {
+                console.log(`Permissão já concedida: ${permission}`);
+                // Verificar próxima permissão
+                checkNextPermission(index + 1);
+            } else {
+                console.log(`Solicitando permissão: ${permission}`);
+                // Solicitar permissão
+                permissions.requestPermission(permission, function(status) {
+                    if (status.hasPermission) {
+                        console.log(`Permissão concedida: ${permission}`);
+                        // Verificar próxima permissão
+                        checkNextPermission(index + 1);
+                    } else {
+                        console.log(`Permissão negada: ${permission}`);
+                        // Se a permissão foi negada e é crítica para o Bluetooth, chamar callback de erro
+                        if (errorCallback && !callbackCalled) {
+                            callbackCalled = true;
+                            errorCallback();
+                        } else if (!callbackCalled) {
+                            // Se não temos callback de erro ou queremos continuar mesmo com permissão negada
+                            callbackCalled = true;
+                            successCallback();
+                        }
+                    }
+                }, function(error) {
+                    console.error(`Erro ao solicitar permissão: ${permission}`, error);
+                    // Em caso de erro, tentar continuar mesmo assim
+                    if (successCallback && !callbackCalled) {
+                        callbackCalled = true;
+                        successCallback();
+                    }
+                });
+            }
+        }, function(error) {
+            console.error(`Erro ao verificar permissão: ${permission}`, error);
+            // Em caso de erro, tentar continuar mesmo assim
+            if (successCallback && !callbackCalled) {
+                callbackCalled = true;
+                successCallback();
+            }
+        });
+    }
+    
+    // Iniciar verificação de permissões
+    checkNextPermission(0);
+    
+    // Se houver algum problema com o plugin de permissões, garantir que o callback será chamado após um timeout
+    setTimeout(function() {
+        if (!callbackCalled && successCallback) {
+            console.log('Timeout de permissões atingido, prosseguindo mesmo assim');
+            callbackCalled = true;
+            successCallback();
+        }
+    }, 3000);
+}
+
+// Função simplificada para enviar dados à impressora BLE
+function sendPrintDataSimplified(peripheral, data) {
+    console.log('Enviando dados para a impressora BLE (modo simplificado)');
+    
+    // Atualizar mensagem do diálogo de carregamento
+    const loadingDialog = document.querySelector('.loading-dialog');
+    if (loadingDialog) {
+        loadingDialog.querySelector('p').textContent = 'Enviando dados para impressão...';
+    }
+    
+    // Para impressoras térmicas comuns, geralmente o serviço SPP é usado
+    // UUID do serviço SPP (Serial Port Profile): 0x1101
+    const SPP_SERVICE = '1101';
+    
+    // Lista de UUIDs de serviços conhecidos para impressoras térmicas
+    const PRINTER_SERVICE_UUIDS = [
+        '1101',    // SPP (Serial Port Profile)
+        'ffe0',    // HM-10/HM-11 e similares
+        'fff0',    // Outra variante comum
+        'ffb0',    // Outra variante comum
+        '18f0',    // Outra variante comum
+        '1800',    // Generic Access
+        '1801'     // Generic Attribute
+    ];
+    
+    // Lista de UUIDs de características conhecidas para impressoras
+    const PRINTER_CHAR_UUIDS = [
+        'ffe1',    // HM-10/HM-11 e similares
+        'fff1',    // Outra variante comum
+        'ffb1',    // Outra variante comum
+        'ff01',    // Outra variante comum
+        '2af1'     // Bluetooth SIG Printing
+    ];
+    
+    // Verificar todos os serviços disponíveis
+    ble.services(peripheral.id, function(services) {
+        console.log('Serviços disponíveis:', services);
+        
+        // Procurar serviço compatível
+        let serviceToUse = null;
+        
+        // Primeiro, procurar pelos serviços conhecidos de impressoras
+        for (let service of services) {
+            // Normalizar UUID para comparação
+            const serviceUuid = service.toLowerCase().replace(/-/g, '');
+            
+            // Verificar se o UUID está na lista de serviços conhecidos
+            for (let knownUuid of PRINTER_SERVICE_UUIDS) {
+                if (serviceUuid.includes(knownUuid)) {
+                    serviceToUse = service;
+                    console.log('Serviço de impressora encontrado:', service);
+                    break;
+                }
+            }
+            
+            if (serviceToUse) break;
+        }
+        
+        // Se não encontrou um serviço específico, usar o primeiro disponível
+        if (!serviceToUse && services.length > 0) {
+            serviceToUse = services[0];
+            console.log('Usando primeiro serviço disponível:', serviceToUse);
+        }
+        
+        if (serviceToUse) {
+            // Buscar características
+            ble.characteristics(peripheral.id, serviceToUse, function(characteristics) {
+                console.log('Características disponíveis:', characteristics);
+                
+                // Encontrar uma característica que permita escrita
+                let charToUse = null;
+                
+                // Primeiro, procurar pelas características conhecidas de impressoras
+                for (let char of characteristics) {
+                    if (!char.properties) continue;
+                    
+                    // Normalizar UUID para comparação
+                    const charUuid = char.uuid.toLowerCase().replace(/-/g, '');
+                    
+                    // Verificar se o UUID está na lista de características conhecidas
+                    for (let knownUuid of PRINTER_CHAR_UUIDS) {
+                        if (charUuid.includes(knownUuid)) {
+                            charToUse = char;
+                            console.log('Característica de impressora encontrada:', char.uuid);
+                            break;
+                        }
+                    }
+                    
+                    if (charToUse) break;
+                }
+                
+                // Se não encontrou uma característica conhecida, procurar uma que permita escrita
+                if (!charToUse) {
+                    for (let char of characteristics) {
+                        if (char.properties && 
+                            (char.properties.includes('Write') || 
+                             char.properties.includes('WriteWithoutResponse'))) {
+                            charToUse = char;
+                            console.log('Usando primeira característica com permissão de escrita:', char.uuid);
+                            break;
+                        }
+                    }
+                }
+                
+                // Se encontrou uma característica para escrita
+                if (charToUse) {
+                    // Determinar método de escrita
+                    const writeType = charToUse.properties.includes('WriteWithoutResponse') 
+                        ? 'writeWithoutResponse' 
+                        : 'write';
+                    
+                    console.log(`Usando método de escrita: ${writeType}`);
+                    
+                    // Enviar comando de inicialização primeiro
+                    const initCommand = new Uint8Array([
+                        0x1B, 0x40  // ESC @ - Inicializar impressora
+                    ]);
+                    
+                    ble[writeType](
+                        peripheral.id,
+                        serviceToUse,
+                        charToUse.uuid,
+                        initCommand.buffer,
+                        function() {
+                            console.log('Comando de inicialização enviado com sucesso');
+                            
+                            // Após inicializar, enviar os dados em pequenos chunks
+                            // Para impressoras térmicas, usar chunks menores
+                            const chunkSize = 16; // Tamanho reduzido para compatibilidade
+                            const totalChunks = Math.ceil(data.length / chunkSize);
+                            let currentChunk = 0;
+                            
+                            function sendNextChunk() {
+                                if (currentChunk >= totalChunks) {
+                                    console.log('Todos os chunks enviados com sucesso!');
+                                    
+                                    // Enviar comando de corte e alimentação de papel no final
+                                    const cutCommand = new Uint8Array([
+                                        0x1B, 0x64, 0x05, // ESC d n - Avanço de 5 linhas
+                                        0x1D, 0x56, 0x42, 0x01 // GS V B n - Corte parcial
+                                    ]);
+                                    
+                                    ble[writeType](
+                                        peripheral.id,
+                                        serviceToUse,
+                                        charToUse.uuid,
+                                        cutCommand.buffer,
+                                        function() {
+                                            console.log('Comando de corte enviado com sucesso');
+                                            // Desconectar após uma pausa para dar tempo à impressora
+                                            setTimeout(function() {
+                                                if (loadingDialog) {
+                                                    document.body.removeChild(loadingDialog);
+                                                }
+                                                ble.disconnect(peripheral.id);
+                                                vibrate([100, 50, 100, 50, 100]);
+                                                alert('Documento enviado para impressão com sucesso!');
+                                            }, 1000);
+                                        },
+                                        function(error) {
+                                            console.error('Erro ao enviar comando de corte:', error);
+                                            if (loadingDialog) {
+                                                document.body.removeChild(loadingDialog);
+                                            }
+                                            ble.disconnect(peripheral.id);
+                                            vibrate([100, 50, 100, 50, 100]);
+                                            alert('Documento enviado para impressão, mas houve erro no corte!');
+                                        }
+                                    );
+                                    return;
+                                }
+                                
+                                const start = currentChunk * chunkSize;
+                                const end = Math.min(start + chunkSize, data.length);
+                                const chunk = data.slice(start, end);
+                                
+                                console.log(`Enviando chunk ${currentChunk + 1}/${totalChunks} (${chunk.length} bytes)`);
+                                
+                                // Atualizar diálogo com progresso
+                                if (loadingDialog) {
+                                    loadingDialog.querySelector('p').textContent = 
+                                        `Enviando dados para impressão (${Math.round((currentChunk/totalChunks)*100)}%)...`;
+                                }
+                                
+                                ble[writeType](
+                                    peripheral.id,
+                                    serviceToUse,
+                                    charToUse.uuid,
+                                    chunk.buffer,
+                                    function() {
+                                        console.log(`Chunk ${currentChunk + 1} enviado`);
+                                        currentChunk++;
+                                        // Aumento do atraso entre chunks para 100ms - crucial para impressoras térmicas
+                                        setTimeout(sendNextChunk, 100);
+                                    },
+                                    function(error) {
+                                        console.error(`Erro ao enviar chunk ${currentChunk + 1}:`, error);
+                                        // Tentar continuar mesmo com erro em um chunk
+                                        currentChunk++;
+                                        setTimeout(sendNextChunk, 100);
+                                    }
+                                );
+                            }
+                            
+                            // Iniciar envio com um pequeno atraso para a impressora processar o comando de inicialização
+                            setTimeout(sendNextChunk, 200);
+                        },
+                        function(error) {
+                            console.error('Erro ao enviar comando de inicialização:', error);
+                            // Tentar enviar os dados mesmo assim
+                            alert('Aviso: Erro na inicialização da impressora, tentando imprimir mesmo assim...');
+                            
+                            // Modificar para método mais simples - em alguns casos funciona melhor
+                            const simpleCommand = new Uint8Array([
+                                0x1B, 0x40  // ESC @ - Inicializar impressora (comando mais básico)
+                            ]);
+                            
+                            // Tentar uma inicialização mais simples
+                            ble[writeType](
+                                peripheral.id,
+                                serviceToUse,
+                                charToUse.uuid,
+                                simpleCommand.buffer,
+                                function() {
+                                    // Enviar texto simples como teste após 500ms
+                                    setTimeout(function() {
+                                        const testText = textToBytes("TESTE DE IMPRESSAO\n\n");
+                                        ble[writeType](
+                                            peripheral.id, 
+                                            serviceToUse, 
+                                            charToUse.uuid, 
+                                            testText.buffer,
+                                            function() {
+                                                console.log('Teste de impressão enviado');
+                                                if (loadingDialog) {
+                                                    document.body.removeChild(loadingDialog);
+                                                }
+                                                alert('Favor verificar se a impressora imprimiu um teste. Se sim, tente imprimir novamente.');
+                                                ble.disconnect(peripheral.id);
+                                            },
+                                            function(error) {
+                                                console.error('Falha no teste de impressão:', error);
+                                                if (loadingDialog) {
+                                                    document.body.removeChild(loadingDialog);
+                                                }
+                                                alert('Não foi possível enviar teste para a impressora.');
+                                                ble.disconnect(peripheral.id);
+                                            }
+                                        );
+                                    }, 500);
+                                },
+                                function(error) {
+                                    console.error('Erro no comando de inicialização simples:', error);
+                                    if (loadingDialog) {
+                                        document.body.removeChild(loadingDialog);
+                                    }
+                                    ble.disconnect(peripheral.id);
+                                    alert('Falha na comunicação com a impressora. Tente reiniciar a impressora.');
+                                }
+                            );
+                        }
+                    );
+                } else {
+                    console.error('Nenhuma característica com permissão de escrita encontrada');
+                    if (loadingDialog) {
+                        document.body.removeChild(loadingDialog);
+                    }
+                    ble.disconnect(peripheral.id);
+                    alert('Esta impressora não possui uma forma compatível de comunicação.');
+                }
+            }, function(error) {
+                console.error('Erro ao buscar características:', error);
+                if (loadingDialog) {
+                    document.body.removeChild(loadingDialog);
+                }
+                ble.disconnect(peripheral.id);
+                alert('Erro ao buscar características do dispositivo: ' + (typeof error === 'string' ? error : JSON.stringify(error)));
+            });
+        } else {
+            console.error('Nenhum serviço encontrado no dispositivo');
+            if (loadingDialog) {
+                document.body.removeChild(loadingDialog);
+            }
+            ble.disconnect(peripheral.id);
+            alert('Não foi possível encontrar serviços Bluetooth neste dispositivo.');
+        }
+    }, function(error) {
+        console.error('Erro ao buscar serviços:', error);
+        if (loadingDialog) {
+            document.body.removeChild(loadingDialog);
+        }
+        ble.disconnect(peripheral.id);
+        alert('Erro ao buscar serviços do dispositivo: ' + (typeof error === 'string' ? error : JSON.stringify(error)));
+    });
+}
+
+// Função para preparar e enviar dados para a impressora BLE
+function prepareDataForPrinting(peripheral) {
+    console.log('Preparando dados para impressão');
+    
+    // Obter os dados a serem impressos
+    const rawMeasurements = JSON.parse(localStorage.getItem('measurements') || '[]');
+    
+    // Ordenar por data (mais recente primeiro)
+    const savedMeasurements = [...rawMeasurements].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    // Obter serviços disponíveis
+    ble.services(peripheral.id, function(services) {
+        console.log('Serviços disponíveis:', services);
+        
+        // Escolher o primeiro serviço
+        if (services && services.length > 0) {
+            const serviceId = services[0];
+            
+            // Obter características do serviço
+            ble.characteristics(peripheral.id, serviceId, function(characteristics) {
+                console.log('Características disponíveis:', characteristics);
+                
+                // Encontrar uma característica que permite escrita
+                let charToUse = null;
+                for (let i = 0; i < characteristics.length; i++) {
+                    const char = characteristics[i];
+                    if (char.properties && 
+                        (char.properties.includes('Write') || 
+                         char.properties.includes('WriteWithoutResponse'))) {
+                        charToUse = char;
+                        break;
+                    }
+                }
+                
+                if (charToUse) {
+                    // Determinar o método de escrita
+                    const writeMethod = charToUse.properties.includes('WriteWithoutResponse') 
+                        ? 'writeWithoutResponse' 
+                        : 'write';
+                    
+                    console.log('Usando método:', writeMethod);
+                    
+                    // Criar relatório simples (texto puro)
+                    let reportText = "RELATORIO DE PESAGEM\n";
+                    reportText += "LUMAK BALANCAS\n";
+                    reportText += "--------------------------------\n";
+                    reportText += "Data: " + new Date().toLocaleDateString('pt-BR') + "\n\n";
+                    reportText += "BRINCO         PESO           DATA\n";
+                    reportText += "--------------------------------\n";
+                    
+                    // Limitar a 15 itens para não sobrecarregar o buffer
+                    const maxItems = Math.min(savedMeasurements.length, 15);
+                    
+                    // Adicionar cada medição
+                    for (let i = 0; i < maxItems; i++) {
+                        const item = savedMeasurements[i];
+                        
+                        // Ajustar o peso (remover prefixo se existir)
+                        let weightValue = item.weight;
+                        if (weightValue.includes('Peso:')) {
+                            weightValue = weightValue.replace('📊 Peso:', '').trim();
+                        }
+                        
+                        // Formatar data
+                        const date = new Date(item.timestamp);
+                        const formattedDate = date.toLocaleDateString('pt-BR');
+                        
+                        // Alinhar em colunas
+                        const bracelet = (item.bracelet || '').padEnd(15, ' ');
+                        const weight = (weightValue || '').padEnd(15, ' ');
+                        
+                        reportText += bracelet + weight + formattedDate + "\n";
+                    }
+                    
+                    // Rodapé
+                    reportText += "\nTotal: " + savedMeasurements.length + " registros\n";
+                    reportText += "App LUMAK Peso\n\n\n\n\n";
+                    
+                    // Converter texto para bytes
+                    const encoder = new TextEncoder();
+                    const fullData = encoder.encode(reportText);
+                    
+                    // Enviar em pedaços pequenos
+                    const chunkSize = 20; // Tamanho pequeno para compatibilidade máxima
+                    const totalChunks = Math.ceil(fullData.length / chunkSize);
+                    let currentChunk = 0;
+                    
+                    // Diálogo de carregamento
+                    const loadingDialog = document.querySelector('.loading-dialog');
+                    if (loadingDialog) {
+                        loadingDialog.querySelector('p').textContent = 'Enviando para impressora...';
+                    }
+                    
+                    function sendNextBLEChunk() {
+                        if (currentChunk >= totalChunks) {
+                            // Todos os dados enviados
+                            console.log('Impressão concluída!');
+                            
+                            setTimeout(function() {
+                                // Desconectar
+                                ble.disconnect(peripheral.id, function() {
+                                    console.log('Desconectado com sucesso');
+                                });
+                                
+                                // Remover diálogo
+                                if (loadingDialog) {
+                                    document.body.removeChild(loadingDialog);
+                                }
+                                
+                                // Notificar usuário
+                                vibrate([100, 50, 100]);
+                                alert('Documento enviado para impressão!');
+                            }, 1000);
+                            
+                            return;
+                        }
+                        
+                        // Calcular o chunk atual
+                        const start = currentChunk * chunkSize;
+                        const end = Math.min((currentChunk + 1) * chunkSize, fullData.length);
+                        const chunk = fullData.slice(start, end);
+                        
+                        // Atualizar progresso
+                        if (loadingDialog) {
+                            const percent = Math.round((currentChunk / totalChunks) * 100);
+                            loadingDialog.querySelector('p').textContent = `Enviando para impressora... ${percent}%`;
+                        }
+                        
+                        // Enviar chunk
+                        ble[writeMethod](
+                            peripheral.id,
+                            serviceId,
+                            charToUse.uuid,
+                            chunk.buffer,
+                            function() {
+                                // Sucesso - enviar próximo chunk
+                                currentChunk++;
+                                setTimeout(sendNextBLEChunk, 50);
+                            },
+                            function(error) {
+                                // Erro - tentar continuar
+                                console.error('Erro ao enviar chunk:', error);
+                                currentChunk++;
+                                setTimeout(sendNextBLEChunk, 50);
+                            }
+                        );
+                    }
+                    
+                    // Iniciar envio
+                    sendNextBLEChunk();
+                } else {
+                    console.error('Nenhuma característica com permissão de escrita encontrada');
+                    
+                    // Remover diálogo
+                    const loadingDialog = document.querySelector('.loading-dialog');
+                    if (loadingDialog) {
+                        document.body.removeChild(loadingDialog);
+                    }
+                    
+                    alert('Este dispositivo não parece ser uma impressora compatível.');
+                    ble.disconnect(peripheral.id);
+                }
+            }, function(error) {
+                console.error('Erro ao obter características:', error);
+                
+                // Remover diálogo
+                const loadingDialog = document.querySelector('.loading-dialog');
+                if (loadingDialog) {
+                    document.body.removeChild(loadingDialog);
+                }
+                
+                alert('Erro ao comunicar com o dispositivo. Por favor, tente novamente.');
+                ble.disconnect(peripheral.id);
+            });
+        } else {
+            console.error('Nenhum serviço encontrado');
+            
+            // Remover diálogo
+            const loadingDialog = document.querySelector('.loading-dialog');
+            if (loadingDialog) {
+                document.body.removeChild(loadingDialog);
+            }
+            
+            alert('Este dispositivo não possui serviços Bluetooth necessários para impressão.');
+            ble.disconnect(peripheral.id);
+        }
+    }, function(error) {
+        console.error('Erro ao obter serviços:', error);
+        
+        // Remover diálogo
+        const loadingDialog = document.querySelector('.loading-dialog');
+        if (loadingDialog) {
+            document.body.removeChild(loadingDialog);
+        }
+        
+        alert('Não foi possível se comunicar com o dispositivo.');
+        ble.disconnect(peripheral.id);
+    });
 }   

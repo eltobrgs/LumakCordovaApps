@@ -398,6 +398,22 @@ input {
     100% { transform: rotate(360deg); }
 }
 
+.printer-item {
+    padding: 15px;
+    margin-bottom: 10px;
+    background-color: #2b2b2b;
+    border-radius: 5px;
+    color: #fff;
+    text-align: center;
+    font-weight: bold;
+    transition: background-color 0.2s;
+    cursor: pointer;
+}
+
+.printer-item:hover, .printer-item:active {
+    background-color: #0d6efd;
+}
+
 .printer-selection-dialog {
     position: fixed;
     top: 0;
@@ -408,13 +424,13 @@ input {
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 9999;
+    z-index: 10000;
 }
 
 .printer-selection-content {
     background-color: #121212;
     padding: 20px;
-    border-radius: 8px;
+    border-radius: 12px;
     width: 90%;
     max-width: 400px;
     max-height: 80vh;
@@ -423,42 +439,27 @@ input {
 
 .printer-selection-content h3 {
     text-align: center;
+    margin-top: 0;
     margin-bottom: 15px;
     color: #fff;
+    font-size: 20px;
 }
 
 .printer-list {
-    margin-bottom: 20px;
     max-height: 50vh;
     overflow-y: auto;
-}
-
-.printer-item {
-    padding: 12px;
-    margin-bottom: 8px;
-    background-color: #2b2b2b;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-
-.printer-item:hover {
-    background-color: #3b3b3b;
+    margin-bottom: 15px;
+    padding: 5px;
 }
 
 .printer-name {
-    font-weight: bold;
-    margin-bottom: 5px;
-}
-
-.printer-info {
-    font-size: 12px;
-    color: #aaa;
+    font-size: 16px;
 }
 
 .printer-dialog-buttons {
     display: flex;
     justify-content: center;
+    margin-top: 15px;
 }
 
 .printer-dialog-buttons button {
@@ -466,10 +467,39 @@ input {
     color: white;
     border: none;
     border-radius: 5px;
-    padding: 10px 15px;
+    padding: 12px 20px;
+    font-size: 16px;
     cursor: pointer;
 }
 
 .printer-dialog-buttons button:hover {
     background-color: #5a6268;
+}
+
+.btn-small {
+    padding: 8px 12px;
+    font-size: 14px;
+    margin-top: 5px;
+}
+
+.button-group {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin: 10px 0;
+    gap: 10px;
+}
+
+.button-group .btn {
+    flex: 1;
+    min-width: 120px;
+}
+
+/* Na página de balança, os botões devem ficar maiores já que são apenas dois */
+#scalePage .button-group .btn {
+    flex: 1;
+    min-width: 45%;
+    padding: 15px;
+    font-size: 16px;
+    margin-bottom: 10px;
 }
