@@ -117,3 +117,4 @@ O aplicativo oferece duas configurações principais, acessíveis a partir da te
 ## 📱 Download
 
 O aplicativo pode ser baixado diretamente na Google Play ou instalado manualmente via APK.
+# CordovaApps
