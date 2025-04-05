@@ -1,6 +1,7 @@
 // Constantes
 const SERVICE_UUID = "12345678-1234-5678-1234-56789abcdef0";
 const CHARACTERISTIC_UUID = "87654321-4321-8765-4321-abcdef987654";
+const CALIB_UUID = "abcdef12-3456-7890-abcdef1234567890";
 
 // Variáveis globais
 let bleDevice = null;
@@ -8,15 +9,38 @@ let isConnected = false;
 let foundDevices = {};
 let permissionsRequested = false;
 
+// Constantes de conversão
+const KG_TO_ARROBA = 1/15; // 1 arroba = 15 kg
+
+// Configurações padrão
+const DEFAULT_HEADER = {
+    line1: "RELATORIO DE PESAGEM",
+    line2: "LUMAK BALANCAS"
+};
+
 // Elementos da UI
 let statusText = null;
 let deviceSelect = null;
 let connectBtn = null;
 let weightValue = null;
+let weightValueArroba = null;
 let bluetoothStatus = null;
 let braceletInput = null;
 let savedData = null;
 let historyList = null;
+let headerLine1Input = null;
+let headerLine2Input = null;
+let previewHeader1 = null;
+let previewHeader2 = null;
+let connectionStatus = null;
+let btnStartCalibration = null;
+let btnSetWeight = null;
+let refWeightInput = null;
+let calibrationStatus = null;
+
+// Variáveis de estado para calibração
+let calibrationInProgress = false;
+let waitingForWeightReference = false;
 
 // Evento de inicialização
 document.addEventListener('deviceready', onDeviceReady, false);
@@ -29,10 +53,20 @@ function onDeviceReady() {
     deviceSelect = document.getElementById('deviceSelect');
     connectBtn = document.getElementById('connectBtn');
     weightValue = document.getElementById('weightValue');
+    weightValueArroba = document.getElementById('weightValueArroba');
     bluetoothStatus = document.getElementById('bluetoothStatus');
     braceletInput = document.getElementById('braceletInput');
     savedData = document.getElementById('savedData');
     historyList = document.getElementById('historyList');
+    headerLine1Input = document.getElementById('headerLine1');
+    headerLine2Input = document.getElementById('headerLine2');
+    previewHeader1 = document.getElementById('previewHeader1');
+    previewHeader2 = document.getElementById('previewHeader2');
+    connectionStatus = document.getElementById('connection-status');
+    btnStartCalibration = document.getElementById('btn-start-calibration');
+    btnSetWeight = document.getElementById('btn-set-weight');
+    refWeightInput = document.getElementById('refWeight');
+    calibrationStatus = document.getElementById('calibration-status');
     
     // Adicionar eventos para os botões
     setupEventListeners();
@@ -51,6 +85,9 @@ function onDeviceReady() {
     
     // Carregar histórico
     loadHistory();
+    
+    // Carregar configurações
+    loadSettings();
     
     // Vibrações curtas para indicar que o app está pronto
     vibrate(100);
@@ -113,6 +150,26 @@ function setupEventListeners() {
             console.log('Botão de configurações clicado');
             vibrate(50);
             showSettings();
+        });
+    }
+    
+    // Botão de configuração de impressão
+    const printSettingsBtn = document.getElementById('btn-print-settings');
+    if (printSettingsBtn) {
+        printSettingsBtn.addEventListener('click', function() {
+            console.log('Botão de configuração de impressão clicado');
+            vibrate(50);
+            showPrintSettings();
+        });
+    }
+    
+    // Botão de calibração
+    const calibrationBtn = document.getElementById('btn-calibration-settings');
+    if (calibrationBtn) {
+        calibrationBtn.addEventListener('click', function() {
+            console.log('Botão de calibração clicado');
+            vibrate(50);
+            showCalibrationPage();
         });
     }
     
@@ -217,6 +274,42 @@ function setupEventListeners() {
         });
     }
     
+    // Botão de salvar configurações
+    const saveSettingsBtn = document.getElementById('btn-save-settings');
+    if (saveSettingsBtn) {
+        saveSettingsBtn.addEventListener('click', function() {
+            console.log('Botão de salvar configurações clicado');
+            vibrate(100);
+            saveSettings();
+        });
+    }
+    
+    // Event listeners para atualização da prévia em tempo real
+    if (headerLine1Input) {
+        headerLine1Input.addEventListener('input', updateHeaderPreview);
+    }
+    
+    if (headerLine2Input) {
+        headerLine2Input.addEventListener('input', updateHeaderPreview);
+    }
+    
+    // Botões de calibração
+    if (btnStartCalibration) {
+        btnStartCalibration.addEventListener('click', function() {
+            console.log('Botão de iniciar calibração clicado');
+            vibrate(100);
+            startCalibration();
+        });
+    }
+    
+    if (btnSetWeight) {
+        btnSetWeight.addEventListener('click', function() {
+            console.log('Botão de definir peso de calibração clicado');
+            vibrate(100);
+            setCalibrationWeight();
+        });
+    }
+    
     // Log de todos os IDs de botões para depuração
     console.log('Botões disponíveis:', Array.from(document.querySelectorAll('button')).map(btn => {
         return {
@@ -242,9 +335,37 @@ function showPage(pageId) {
     }
 }
 
+// Função para mostrar a página de configurações (agora é apenas um menu)
 function showSettings() {
+    console.log('Exibindo menu de configurações');
     vibrate(50);
-    alert('Configurações em desenvolvimento');
+    
+    // Mostrar a página de configurações (menu)
+    showPage('settingsPage');
+}
+
+// Função para mostrar a página de configurações de impressão
+function showPrintSettings() {
+    console.log('Exibindo configurações de impressão');
+    vibrate(50);
+    
+    // Carregar configurações atuais
+    loadSettings();
+    
+    // Mostrar a página de configurações de impressão
+    showPage('printSettingsPage');
+}
+
+// Função para mostrar a página de calibração
+function showCalibrationPage() {
+    console.log('Exibindo página de calibração');
+    vibrate(50);
+    
+    // Atualizar status de conexão na tela de calibração
+    updateCalibrationConnectionStatus();
+    
+    // Mostrar a página de calibração
+    showPage('calibrationPage');
 }
 
 // Função para verificar e solicitar permissões no Android
@@ -557,7 +678,10 @@ function onConnectSuccess(peripheral) {
     bluetoothStatus.classList.add('connected');
     vibrate([100, 50, 100, 50, 100]); // Padrão de sucesso na conexão
     
-    // Tentar assinar o serviço/característica específico
+    // Atualizar status na tela de calibração
+    updateCalibrationConnectionStatus();
+    
+    // Tentar assinar o serviço/característica específico para leitura de peso
     try {
         console.log("Tentando iniciar notificações com UUID:", SERVICE_UUID, CHARACTERISTIC_UUID);
         ble.startNotification(
@@ -573,6 +697,23 @@ function onConnectSuccess(peripheral) {
                 statusText.textContent = '✅ Conectado (não é uma balança LUMAK)';
             }
         );
+        
+        // Tentar assinar também a característica de calibração
+        console.log("Tentando iniciar notificações de calibração:", SERVICE_UUID, CALIB_UUID);
+        ble.startNotification(
+            peripheral.id,
+            SERVICE_UUID,
+            CALIB_UUID,
+            function(data) {
+                console.log("Dados de calibração recebidos:", data);
+                processCalibrationResponse(data);
+            },
+            function(error) {
+                console.log('Erro ao assinar notificações de calibração:', error);
+                // Não mostrar erro para o usuário, já que isso é secundário
+            }
+        );
+        
         statusText.textContent = '✅ Conectado como balança!';
     } catch (error) {
         console.log('Falha ao configurar notificações:', error);
@@ -594,10 +735,8 @@ function onWeightDataReceived(data) {
     try {
         // Converter os dados ArrayBuffer para string
         const value = bytesToString(data);
-        console.log("Valor recebido:", value);
-        weightValue.textContent = `📊 Peso: ${value} Kg`;
-        // Vibração suave quando novos dados são recebidos
-        vibrate(50);
+        // Usar a função de processamento para exibir kg e @
+        processaValorRecebido(value);
     } catch (error) {
         console.error("Erro ao processar dados:", error);
     }
@@ -636,6 +775,10 @@ function disconnect() {
     bleDevice = null;
     bluetoothStatus.classList.remove('connected');
     weightValue.textContent = 'Aguardando dados...';
+    
+    // Atualizar status na tela de calibração
+    updateCalibrationConnectionStatus();
+    
     showPage('homePage');
 }
 
@@ -643,17 +786,39 @@ function disconnect() {
 function saveData() {
     console.log("Função saveData chamada");
     const bracelet = braceletInput.value;
-    const weight = weightValue.textContent;
+    const weightKg = weightValue.textContent;
+    const weightArroba = weightValueArroba ? weightValueArroba.textContent : '';
     
-    if (bracelet && weight !== 'Aguardando dados...') {
+    if (bracelet && weightKg !== 'Aguardando dados...') {
         // Salvar no localStorage
         const savedMeasurements = JSON.parse(localStorage.getItem('measurements') || '[]');
+        
+        // Extrair valor numérico do peso em kg
+        let numericWeightKg = '';
+        if (weightKg.includes('Peso:')) {
+            numericWeightKg = weightKg.replace('📊 Peso:', '').trim();
+        } else {
+            numericWeightKg = weightKg;
+        }
+        
+        // Extrair valor numérico do peso em arrobas
+        let numericWeightArroba = '';
+        if (weightArroba) {
+            if (weightArroba.includes('🐄')) {
+                numericWeightArroba = weightArroba.replace('🐄', '').trim();
+            } else {
+                numericWeightArroba = weightArroba;
+            }
+        }
         
         // Criar novo objeto de medição
         const newMeasurement = {
             id: Date.now().toString(), // ID único baseado no timestamp
             bracelet,
-            weight,
+            weight: weightKg,
+            weightArroba: weightArroba,
+            numericWeightKg: numericWeightKg.replace(/[^\d.,]/g, '').trim(),
+            numericWeightArroba: numericWeightArroba.replace(/[^\d.,]/g, '').trim(),
             timestamp: new Date().toISOString()
         };
         
@@ -746,44 +911,56 @@ function loadHistory() {
             weightValue = weightValue.replace('📊 Peso:', '').trim();
         }
         
+        // Verificar se já temos o peso em arroba ou precisamos calcular
+        let weightArrobaValue = '';
+        if (measurement.weightArroba) {
+            // Já temos o valor em arroba
+            if (measurement.weightArroba.includes('🐄')) {
+                weightArrobaValue = measurement.weightArroba.replace('🐄', '').trim();
+            } else {
+                weightArrobaValue = measurement.weightArroba;
+            }
+        } else if (measurement.numericWeightArroba) {
+            // Utilizamos o valor numérico em arroba
+            weightArrobaValue = measurement.numericWeightArroba + ' @';
+        } else {
+            // Precisamos calcular a partir do peso em kg
+            const numericWeightKg = parseFloat(weightValue.replace(/[^\d.,]/g, '').replace(',', '.'));
+            if (!isNaN(numericWeightKg)) {
+                const pesoArroba = (numericWeightKg * KG_TO_ARROBA).toFixed(2).replace('.', ',');
+                weightArrobaValue = pesoArroba + ' @';
+            }
+        }
+        
         // Formatar a data/hora para formato brasileiro
         const dateTime = new Date(measurement.timestamp);
         const formattedDateTime = dateTime.toLocaleString('pt-BR');
         
-        // Criar elemento para o item do histórico
+        // Criar elemento de item do histórico
         const historyItem = document.createElement('div');
         historyItem.className = 'history-item';
-        historyItem.dataset.id = measurement.id;
-        
         historyItem.innerHTML = `
-            <div class="history-item-content">
-                <strong>${measurement.bracelet}</strong>: ${weightValue}
-                <span class="history-item-date">${formattedDateTime}</span>
+            <div class="history-item-id">${measurement.bracelet}</div>
+            <div class="history-item-details">
+                <div class="history-item-weight">${weightValue}</div>
+                <div class="history-item-weight-arroba">${weightArrobaValue}</div>
+                <div class="history-item-date">${formattedDateTime}</div>
             </div>
-            <div class="history-item-actions">
-                <button class="delete-item" title="Excluir item">
-                    <span class="material-icons">delete</span>
-                </button>
-            </div>
+            <button class="btn-delete" data-id="${measurement.id}">
+                <span class="material-icons">delete</span>
+            </button>
         `;
         
-        // Adicionar evento para excluir item
-        historyItem.querySelector('.delete-item').addEventListener('click', function(e) {
-            e.stopPropagation();
-            deleteHistoryItem(measurement.id);
-        });
-        
         historyList.appendChild(historyItem);
+        
+        // Adicionar evento para botão de exclusão
+        const deleteBtn = historyItem.querySelector('.btn-delete');
+        deleteBtn.addEventListener('click', function() {
+            vibrate(50);
+            const itemId = this.getAttribute('data-id');
+            deleteHistoryItem(itemId);
+        });
     });
-    
-    // Adicionar contador no final
-    const counterElement = document.createElement('div');
-    counterElement.className = 'history-counter';
-    counterElement.textContent = `Total: ${savedMeasurements.length} registros`;
-    counterElement.style.textAlign = 'center';
-    counterElement.style.padding = '10px';
-    counterElement.style.color = '#aaa';
-    historyList.appendChild(counterElement);
 }
 
 // Função para excluir um item específico do histórico
@@ -1029,19 +1206,22 @@ function connectToBLEPrinter(device) {
                 // Ordenar por data (mais recente primeiro)
                 const savedMeasurements = [...rawMeasurements].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
                 
-                // Texto para impressão - NOVA FORMATAÇÃO
+                // Carregar o cabeçalho personalizado
+                const customHeader = loadSettings();
+                
+                // Texto para impressão - NOVA FORMATAÇÃO COM CABEÇALHO PERSONALIZADO
                 let printData = "\x1B\x40"; // ESC @ - Reset/inicializar impressora
                 printData += "\x1B\x61\x01"; // ESC a 1 - Centralizar
                 printData += "\x1D\x21\x11"; // GS ! 17 - Fonte um pouco maior e em negrito
-                printData += "RELATORIO DE PESAGEM\r\n";
-                printData += "LUMAK BALANCAS\r\n";
+                printData += customHeader.line1 + "\r\n";
+                printData += customHeader.line2 + "\r\n";
                 printData += "\x1D\x21\x00"; // GS ! 0 - Fonte normal
                 printData += "--------------------------------\r\n";
                 printData += "\x1B\x61\x00"; // ESC a 0 - Alinhar à esquerda
                 printData += "Data: " + new Date().toLocaleDateString('pt-BR') + "\r\n\r\n";
                 
                 // Cabeçalho com colunas bem definidas e sem quebra
-                printData += "BRINCO      PESO        DATA\r\n";
+                printData += "BRINCO      PESO(KG)   PESO(@)\r\n";
                 printData += "--------------------------------\r\n";
                 
                 // Limitar a quantidade de itens
@@ -1051,29 +1231,34 @@ function connectToBLEPrinter(device) {
                 for (let i = 0; i < maxItems; i++) {
                     const measurement = savedMeasurements[i];
                     
-                    // Extrair apenas o valor numérico do peso
+                    // Extrair apenas o valor numérico do peso em kg
                     let weightValue = measurement.weight;
                     if (weightValue.includes('Peso:')) {
                         weightValue = weightValue.replace('📊 Peso:', '').trim();
                     }
                     
-                    // Formatar a data para formato brasileiro curto (dia/mês)
-                    const dateTime = new Date(measurement.timestamp);
-                    const formattedDate = dateTime.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'});
+                    // Calcular o peso em arrobas
+                    const numericWeightKg = parseFloat(weightValue.replace(/[^\d.,]/g, '').replace(',', '.'));
+                    let weightArrobaValue = '';
+                    if (!isNaN(numericWeightKg)) {
+                        weightArrobaValue = (numericWeightKg * KG_TO_ARROBA).toFixed(2).replace('.', ',');
+                    }
                     
                     // Formatar como colunas fixas para evitar quebra de linha
                     // Limitar e padronizar o tamanho de cada campo
                     const bracelet = measurement.bracelet.padEnd(10).substring(0, 10);
-                    const weight = weightValue.padEnd(12).substring(0, 12);
+                    const weightKg = weightValue.replace(/[^\d., ]/g, '').trim().padEnd(10).substring(0, 10);
+                    const weightArroba = weightArrobaValue.padEnd(8).substring(0, 8);
                     
                     // Linha da tabela compactada para evitar quebra
-                    printData += `${bracelet}${weight}${formattedDate}\r\n`;
+                    printData += `${bracelet}${weightKg}${weightArroba}\r\n`;
                 }
                 
                 // Rodapé centralizado
                 printData += "\r\n";
                 printData += "\x1B\x61\x01"; // ESC a 1 - Centralizar
                 printData += `Total: ${savedMeasurements.length} registros\r\n`;
+                printData += "1 @ = 15 Kg\r\n";
                 printData += "App LUMAK Peso\r\n\r\n\r\n\r\n\r\n";
                 
                 // Corte de papel
@@ -1224,13 +1409,16 @@ function exportAsFile() {
         // Ordenar por data (mais recente primeiro)
         const sortedMeasurements = [...savedMeasurements].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
         
+        // Carregar o cabeçalho personalizado
+        const customHeader = loadSettings();
+        
         // Criar conteúdo HTML para impressão
         let htmlContent = `
             <!DOCTYPE html>
             <html lang="pt-BR">
             <head>
                 <meta charset="UTF-8">
-                <title>Relatório de Pesagem - LUMAK</title>
+                <title>${customHeader.line1} - ${customHeader.line2}</title>
                 <style>
                     body {
                         font-family: Arial, sans-serif;
@@ -1288,7 +1476,8 @@ function exportAsFile() {
             </head>
             <body>
                 <div class="header">
-                    <h1>Relatório de Pesagem - LUMAK</h1>
+                    <h1>${customHeader.line1}</h1>
+                    <h2>${customHeader.line2}</h2>
                 </div>
                 
                 <div class="date">
@@ -1300,7 +1489,8 @@ function exportAsFile() {
                         <tr>
                             <th>#</th>
                             <th>Identificação/Brinco</th>
-                            <th>Peso</th>
+                            <th>Peso (Kg)</th>
+                            <th>Peso (@)</th>
                             <th>Data/Hora</th>
                         </tr>
                     </thead>
@@ -1324,6 +1514,7 @@ function exportAsFile() {
                     <td>${index + 1}</td>
                     <td>${measurement.bracelet}</td>
                     <td>${weightValue}</td>
+                    <td>${measurement.weightArroba}</td>
                     <td>${formattedDateTime}</td>
                 </tr>
             `;
@@ -1969,7 +2160,7 @@ function prepareDataForPrinting(peripheral) {
                     reportText += "LUMAK BALANCAS\n";
                     reportText += "--------------------------------\n";
                     reportText += "Data: " + new Date().toLocaleDateString('pt-BR') + "\n\n";
-                    reportText += "BRINCO         PESO           DATA\n";
+                    reportText += "BRINCO      PESO(KG)   PESO(@)\n";
                     reportText += "--------------------------------\n";
                     
                     // Limitar a 15 itens para não sobrecarregar o buffer
@@ -1985,19 +2176,24 @@ function prepareDataForPrinting(peripheral) {
                             weightValue = weightValue.replace('📊 Peso:', '').trim();
                         }
                         
-                        // Formatar data
-                        const date = new Date(item.timestamp);
-                        const formattedDate = date.toLocaleDateString('pt-BR');
+                        // Calcular o peso em arrobas
+                        const numericWeightKg = parseFloat(weightValue.replace(/[^\d.,]/g, '').replace(',', '.'));
+                        let weightArrobaValue = '';
+                        if (!isNaN(numericWeightKg)) {
+                            weightArrobaValue = (numericWeightKg * KG_TO_ARROBA).toFixed(2).replace('.', ',');
+                        }
                         
                         // Alinhar em colunas
-                        const bracelet = (item.bracelet || '').padEnd(15, ' ');
-                        const weight = (weightValue || '').padEnd(15, ' ');
+                        const bracelet = (item.bracelet || '').padEnd(10, ' ');
+                        const weight = (weightValue.replace(/[^\d., ]/g, '').trim() || '').padEnd(10, ' ');
+                        const weightArroba = (weightArrobaValue || '').padEnd(8, ' ');
                         
-                        reportText += bracelet + weight + formattedDate + "\n";
+                        reportText += bracelet + weight + weightArroba + "\n";
                     }
                     
                     // Rodapé
                     reportText += "\nTotal: " + savedMeasurements.length + " registros\n";
+                    reportText += "1 @ = 15 Kg\n";
                     reportText += "App LUMAK Peso\n\n\n\n\n";
                     
                     // Converter texto para bytes
@@ -2120,4 +2316,342 @@ function prepareDataForPrinting(peripheral) {
         alert('Não foi possível se comunicar com o dispositivo.');
         ble.disconnect(peripheral.id);
     });
-}   
+}
+
+// Função para carregar as configurações salvas
+function loadSettings() {
+    console.log('Carregando configurações salvas');
+    
+    try {
+        // Recuperar configurações do localStorage
+        const savedHeader = JSON.parse(localStorage.getItem('printHeader') || JSON.stringify(DEFAULT_HEADER));
+        
+        // Aplicar aos campos se estiverem disponíveis
+        if (headerLine1Input) {
+            headerLine1Input.value = savedHeader.line1 || DEFAULT_HEADER.line1;
+        }
+        
+        if (headerLine2Input) {
+            headerLine2Input.value = savedHeader.line2 || DEFAULT_HEADER.line2;
+        }
+        
+        // Atualizar prévia
+        updateHeaderPreview();
+        
+        console.log('Configurações carregadas com sucesso:', savedHeader);
+        return savedHeader;
+    } catch (error) {
+        console.error('Erro ao carregar configurações:', error);
+        return DEFAULT_HEADER;
+    }
+}
+
+// Função para salvar as configurações
+function saveSettings() {
+    console.log('Salvando configurações');
+    
+    try {
+        // Obter valores dos campos
+        const headerLine1 = headerLine1Input ? headerLine1Input.value.trim() : DEFAULT_HEADER.line1;
+        const headerLine2 = headerLine2Input ? headerLine2Input.value.trim() : DEFAULT_HEADER.line2;
+        
+        // Validar valores
+        const line1 = headerLine1 || DEFAULT_HEADER.line1;
+        const line2 = headerLine2 || DEFAULT_HEADER.line2;
+        
+        // Criar objeto de configuração
+        const headerConfig = {
+            line1,
+            line2
+        };
+        
+        // Salvar no localStorage
+        localStorage.setItem('printHeader', JSON.stringify(headerConfig));
+        
+        // Atualizar prévia
+        updateHeaderPreview();
+        
+        // Mostrar feedback
+        showSettingsFeedback('Configurações salvas com sucesso!');
+        
+        vibrate([50, 100, 50]); // Padrão de vibração para salvamento
+        console.log('Configurações salvas com sucesso:', headerConfig);
+        
+        return true;
+    } catch (error) {
+        console.error('Erro ao salvar configurações:', error);
+        alert('Erro ao salvar configurações: ' + error.message);
+        vibrate([100, 100, 300]); // Padrão de erro
+        return false;
+    }
+}
+
+// Função para atualizar a prévia do cabeçalho
+function updateHeaderPreview() {
+    if (previewHeader1 && headerLine1Input) {
+        previewHeader1.textContent = headerLine1Input.value || DEFAULT_HEADER.line1;
+    }
+    
+    if (previewHeader2 && headerLine2Input) {
+        previewHeader2.textContent = headerLine2Input.value || DEFAULT_HEADER.line2;
+    }
+}
+
+// Função para mostrar feedback na tela de configurações
+function showSettingsFeedback(message) {
+    // Verificar se já existe um feedback
+    let feedback = document.querySelector('.settings-feedback');
+    
+    // Se não existe, criar um novo
+    if (!feedback) {
+        feedback = document.createElement('div');
+        feedback.className = 'settings-feedback';
+        
+        // Inserir após o botão de salvar
+        const saveBtn = document.getElementById('btn-save-settings');
+        if (saveBtn) {
+            saveBtn.parentNode.insertBefore(feedback, saveBtn.nextSibling);
+        }
+    }
+    
+    // Definir a mensagem
+    feedback.textContent = message;
+    
+    // Mostrar com animação
+    feedback.classList.remove('show');
+    setTimeout(() => {
+        feedback.classList.add('show');
+    }, 10);
+    
+    // Remover após 3 segundos
+    setTimeout(() => {
+        feedback.classList.remove('show');
+    }, 3000);
+}
+
+// Função de processamento de peso recebido
+function processaValorRecebido(value) {
+    if (!weightValue) {
+        console.error("Elemento weightValue não está disponível!");
+        return;
+    }
+    
+    console.log("Valor recebido:", value);
+    
+    // Extrair valor numérico (remover qualquer texto)
+    let valorNumerico = parseFloat(value.replace(/[^\d.-]/g, ''));
+    
+    // Formatar o valor em kg
+    let pesoKgFormatado = isNaN(valorNumerico) ? "0.00" : valorNumerico.toFixed(2);
+    weightValue.textContent = `📊 Peso: ${pesoKgFormatado} Kg`;
+    
+    // Calcular e formatar o valor em arrobas (1@ = 15kg)
+    if (weightValueArroba) {
+        let pesoArroba = isNaN(valorNumerico) ? 0 : valorNumerico * KG_TO_ARROBA;
+        let pesoArrobaFormatado = pesoArroba.toFixed(2).replace('.', ',');
+        weightValueArroba.textContent = `🐄 ${pesoArrobaFormatado} @`;
+    }
+    
+    // Vibração suave quando novos dados são recebidos
+    vibrate(50);
+}
+
+// Função para detectar quando novos dados são recebidos
+function onData(buffer) {
+    // Converter o buffer para texto
+    let value = bytesToString(buffer);
+    if (value) {
+        // Processar o valor recebido e atualizar a interface
+        processaValorRecebido(value);
+    }
+}
+
+// Funções de calibração
+
+// Atualiza o status de conexão na tela de calibração
+function updateCalibrationConnectionStatus() {
+    if (!connectionStatus) return;
+    
+    if (isConnected && bleDevice) {
+        connectionStatus.textContent = 'Conectado';
+        connectionStatus.classList.remove('not-connected');
+        connectionStatus.classList.add('connected');
+        
+        // Habilitar botão de iniciar calibração
+        if (btnStartCalibration) {
+            btnStartCalibration.disabled = false;
+        }
+    } else {
+        connectionStatus.textContent = 'Não conectado';
+        connectionStatus.classList.remove('connected');
+        connectionStatus.classList.add('not-connected');
+        
+        // Desabilitar botões de calibração
+        if (btnStartCalibration) {
+            btnStartCalibration.disabled = true;
+        }
+        if (btnSetWeight) {
+            btnSetWeight.disabled = true;
+        }
+        
+        // Resetar estado de calibração
+        calibrationInProgress = false;
+        waitingForWeightReference = false;
+        
+        // Limpar mensagem de status
+        showCalibrationMessage('', '');
+    }
+}
+
+// Inicia o processo de calibração
+function startCalibration() {
+    if (!isConnected || !bleDevice) {
+        showCalibrationMessage('Não há conexão com a balança', 'error');
+        return;
+    }
+    
+    console.log('Iniciando processo de calibração');
+    
+    try {
+        // Enviar comando de calibração para a balança
+        ble.write(
+            bleDevice.id,
+            SERVICE_UUID,
+            CALIB_UUID,
+            stringToBytes('calibrar'),
+            function() {
+                console.log('Comando de calibração enviado com sucesso');
+                calibrationInProgress = true;
+                waitingForWeightReference = true;
+                
+                // Desabilitar botão de iniciar e habilitar botão de definir peso
+                btnStartCalibration.disabled = true;
+                btnSetWeight.disabled = false;
+                
+                // Exibir mensagem para o usuário
+                showCalibrationMessage('Remova qualquer peso da balança e aguarde. Em seguida, coloque o peso conhecido e informe o valor.', 'info');
+                
+                // Vibrar para indicar sucesso
+                vibrate([50, 100, 50]);
+            },
+            function(error) {
+                console.error('Erro ao enviar comando de calibração:', error);
+                showCalibrationMessage('Erro ao iniciar calibração: ' + error, 'error');
+                calibrationInProgress = false;
+                vibrate([100, 100, 300]); // Padrão de erro
+            }
+        );
+    } catch (error) {
+        console.error('Erro ao iniciar calibração:', error);
+        showCalibrationMessage('Erro ao iniciar calibração: ' + error.message, 'error');
+        vibrate([100, 100, 300]); // Padrão de erro
+    }
+}
+
+// Envia o peso de referência para a balança
+function setCalibrationWeight() {
+    if (!isConnected || !bleDevice || !waitingForWeightReference) {
+        showCalibrationMessage('Calibração não iniciada ou conexão perdida', 'error');
+        return;
+    }
+    
+    // Obter o valor do peso de referência
+    const refWeight = parseFloat(refWeightInput.value);
+    
+    if (isNaN(refWeight) || refWeight <= 0) {
+        showCalibrationMessage('Informe um peso de referência válido (maior que zero)', 'warning');
+        return;
+    }
+    
+    console.log('Enviando peso de referência:', refWeight);
+    
+    try {
+        // Enviar o valor do peso de referência para a balança
+        ble.write(
+            bleDevice.id,
+            SERVICE_UUID,
+            CALIB_UUID,
+            stringToBytes(refWeight.toString()),
+            function() {
+                console.log('Peso de referência enviado com sucesso');
+                
+                // Desabilitar os botões de calibração
+                btnStartCalibration.disabled = false;
+                btnSetWeight.disabled = true;
+                
+                // Atualizar estados
+                waitingForWeightReference = false;
+                
+                // Exibir mensagem para o usuário
+                showCalibrationMessage('Peso de referência enviado. Aguardando confirmação da balança...', 'info');
+                
+                // Vibrar para indicar sucesso
+                vibrate([50, 100, 50]);
+            },
+            function(error) {
+                console.error('Erro ao enviar peso de referência:', error);
+                showCalibrationMessage('Erro ao enviar peso: ' + error, 'error');
+                vibrate([100, 100, 300]); // Padrão de erro
+            }
+        );
+    } catch (error) {
+        console.error('Erro ao enviar peso de referência:', error);
+        showCalibrationMessage('Erro ao enviar peso: ' + error.message, 'error');
+        vibrate([100, 100, 300]); // Padrão de erro
+    }
+}
+
+// Processa a resposta de calibração da balança
+function processCalibrationResponse(data) {
+    try {
+        // Converter o buffer para string
+        const response = bytesToString(data);
+        console.log('Resposta de calibração recebida:', response);
+        
+        if (response === 'OK') {
+            // Calibração concluída com sucesso
+            showCalibrationMessage('Calibração concluída com sucesso!', 'success');
+            calibrationInProgress = false;
+            waitingForWeightReference = false;
+            
+            // Reset dos inputs e botões
+            btnStartCalibration.disabled = false;
+            btnSetWeight.disabled = true;
+            refWeightInput.value = '';
+            
+            // Vibrar para indicar sucesso
+            vibrate([100, 50, 100, 50, 100]);
+        } else {
+            // Mensagem intermediária da balança
+            showCalibrationMessage(response, 'info');
+        }
+    } catch (error) {
+        console.error('Erro ao processar resposta de calibração:', error);
+        showCalibrationMessage('Erro ao processar resposta: ' + error.message, 'error');
+    }
+}
+
+// Exibe mensagem de status da calibração
+function showCalibrationMessage(message, type) {
+    if (!calibrationStatus) return;
+    
+    if (!message) {
+        calibrationStatus.textContent = '';
+        calibrationStatus.className = 'calibration-message';
+        return;
+    }
+    
+    calibrationStatus.textContent = message;
+    calibrationStatus.className = 'calibration-message';
+    
+    if (type) {
+        calibrationStatus.classList.add(type);
+    }
+}
+
+// Converter string para bytes (para enviar à balança)
+function stringToBytes(text) {
+    const encoder = new TextEncoder();
+    return encoder.encode(text).buffer;
+}
+    

@@ -91,6 +91,7 @@
                     <h2>Dados da Balança</h2>
                     <div id="weightDisplay" class="weight-display">
                         <span id="weightValue">Aguardando dados...</span>
+                        <span id="weightValueArroba" class="weight-arroba">0,00 @</span>
                     </div>
                     <div id="savedData" class="saved-data"></div>
                     <input type="text" id="braceletInput" placeholder="Número do Brinco ou Nome do Animal" class="input-field">
@@ -125,6 +126,117 @@
                         </button>
                     </div>
                     <button class="btn" data-page="homePage">
+                        <span class="material-icons">arrow_back</span> Voltar
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Página de Configurações -->
+            <div id="settingsPage" class="page">
+                <div class="card">
+                    <h2>Configurações</h2>
+                    
+                    <div class="settings-options">
+                        <div class="settings-option">
+                            <h3>Configuração de Impressão</h3>
+                            <p>Personalize o cabeçalho dos relatórios impressos</p>
+                            <button id="btn-print-settings" class="btn btn-option" data-page="printSettingsPage">
+                                <span class="material-icons">print</span> Editar Cabeçalho
+                            </button>
+                        </div>
+                        
+                        <div class="settings-option">
+                            <h3>Calibração da Balança</h3>
+                            <p>Calibre sua balança para garantir medições precisas</p>
+                            <button id="btn-calibration-settings" class="btn btn-option" data-page="calibrationPage">
+                                <span class="material-icons">scale</span> Calibrar Balança
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <button class="btn" data-page="homePage">
+                        <span class="material-icons">arrow_back</span> Voltar
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Página de Configuração de Impressão -->
+            <div id="printSettingsPage" class="page">
+                <div class="card">
+                    <h2>Cabeçalho de Impressão</h2>
+                    <p class="settings-description">Personalize o texto que aparecerá no topo dos relatórios impressos.</p>
+                    
+                    <div class="settings-form">
+                        <div class="form-group">
+                            <label for="headerLine1">Linha 1 (Título):</label>
+                            <input type="text" id="headerLine1" class="input-field" placeholder="Ex: RELATORIO DE PESAGEM">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="headerLine2">Linha 2 (Subtítulo):</label>
+                            <input type="text" id="headerLine2" class="input-field" placeholder="Ex: LUMAK BALANCAS">
+                        </div>
+                        
+                        <div class="preview-section">
+                            <h4>Prévia:</h4>
+                            <div class="receipt-preview">
+                                <div id="previewHeader1">RELATORIO DE PESAGEM</div>
+                                <div id="previewHeader2">LUMAK BALANCAS</div>
+                                <div>--------------------------------</div>
+                                <div>Data: DD/MM/YYYY</div>
+                                <div>BRINCO      PESO        DATA</div>
+                                <div>--------------------------------</div>
+                                <div>12345       000.45 Kg   DD/MM</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="button-group">
+                        <button id="btn-save-settings" class="btn btn-save">
+                            <span class="material-icons">save</span> Salvar Configurações
+                        </button>
+                    </div>
+                    
+                    <button class="btn" data-page="settingsPage">
+                        <span class="material-icons">arrow_back</span> Voltar
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Página de Calibração -->
+            <div id="calibrationPage" class="page">
+                <div class="card">
+                    <h2>Calibração da Balança</h2>
+                    <p class="settings-description">Calibre sua balança seguindo os passos abaixo:</p>
+                    
+                    <div class="calibration-steps">
+                        <div class="calibration-step" id="step1">
+                            <p>1. Conecte-se à balança na página de conexão</p>
+                            <div id="connection-status" class="status-badge not-connected">Não conectado</div>
+                        </div>
+                        
+                        <div class="calibration-step" id="step2">
+                            <p>2. Certifique-se que não há peso sobre a balança</p>
+                            <button id="btn-start-calibration" class="btn" disabled>
+                                <span class="material-icons">scale</span> Iniciar Calibração
+                            </button>
+                        </div>
+                        
+                        <div class="calibration-step" id="step3">
+                            <p>3. Quando solicitado, coloque um peso conhecido sobre a balança</p>
+                            <div class="form-group">
+                                <label for="refWeight">Peso de referência (kg):</label>
+                                <input type="number" id="refWeight" class="input-field" placeholder="Ex: 20" step="0.01" min="0.1">
+                            </div>
+                            <button id="btn-set-weight" class="btn" disabled>
+                                <span class="material-icons">check</span> Confirmar Peso
+                            </button>
+                        </div>
+                        
+                        <div id="calibration-status" class="calibration-message"></div>
+                    </div>
+                    
+                    <button class="btn" data-page="settingsPage">
                         <span class="material-icons">arrow_back</span> Voltar
                     </button>
                 </div>

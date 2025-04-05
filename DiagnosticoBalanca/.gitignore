@@ -1,0 +1,42 @@
+# Arquivos e diretórios específicos do Cordova
+/platforms/
+/plugins/
+/hooks/
+/node_modules/
+/.gradle/
+
+# Arquivos gerados pelo Android Studio
+.idea/
+*.iml
+.gradle/
+build/
+local.properties
+
+# Arquivos gerados pelo Xcode
+*.xcuserdatad
+*.xcworkspace
+!default.xcworkspace
+xcuserdata
+profile
+*.moved-aside
+DerivedData
+.idea/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Arquivos de sistema
+.DS_Store
+Thumbs.db
+Desktop.ini
+._*
+$RECYCLE.BIN/
+
+# Logs e arquivos temporários
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.tmp
+.temp 

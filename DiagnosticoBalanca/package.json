@@ -1,0 +1,39 @@
+{
+  "name": "com.lumaapps.diagnostico",
+  "displayName": "LUMAK DIAGNÓSTICO",
+  "version": "1.0.0",
+  "description": "Aplicativo para diagnóstico de balanças via Bluetooth",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "ecosystem:cordova"
+  ],
+  "author": "LUMAK Equipe",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "cordova-android": "^13.0.0",
+    "cordova-plugin-android-permissions": "^1.1.5",
+    "cordova-plugin-ble-central": "^2.0.0",
+    "cordova-plugin-device": "^3.0.0",
+    "cordova-plugin-vibration": "^3.1.1"
+  },
+  "cordova": {
+    "platforms": [
+      "android"
+    ],
+    "plugins": {
+      "cordova-plugin-ble-central": {
+        "ACCESS_BACKGROUND_LOCATION": "false"
+      },
+      "cordova-plugin-android-permissions": {
+        "ACCESS_BACKGROUND_LOCATION": "false"
+      },
+      "cordova-plugin-device": {
+        "ACCESS_BACKGROUND_LOCATION": "false"
+      },
+      "cordova-plugin-vibration": {}
+    }
+  }
+}

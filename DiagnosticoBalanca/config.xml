@@ -1,0 +1,27 @@
+<?xml version='1.0' encoding='utf-8'?>
+<widget id="com.lumaapps.diagnostico" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+    <name>LUMAK DIAGNÓSTICO</name>
+    <description>Aplicativo para diagnóstico de balanças via Bluetooth</description>
+    <author email="contato@lumabalancas.com.br" href="https://lumabalancas.com.br">
+        LUMAK Equipe
+    </author>
+    <content src="index.html" />
+    <allow-intent href="http://*/*" />
+    <allow-intent href="https://*/*" />
+    
+    <preference name="Orientation" value="portrait" />
+    <preference name="DisallowOverscroll" value="true" />
+    <preference name="BackgroundColor" value="#1C1C1C" />
+    <preference name="StatusBarBackgroundColor" value="#1C1C1C" />
+    <preference name="StatusBarStyle" value="lightcontent" />
+    
+    <!-- Preferências para plugins de arquivo -->
+    <preference name="AndroidPersistentFileLocation" value="Compatibility" />
+    <preference name="iosPersistentFileLocation" value="Library" />
+    
+    <!-- Configurações para plataformas -->
+    <platform name="android">
+        <preference name="AndroidWindowSplashScreenAnimatedIcon" value="res/screen/android/splashscreen.png" />
+        <preference name="AndroidWindowSplashScreenBackground" value="#1C1C1C" />
+    </platform>
+</widget> 

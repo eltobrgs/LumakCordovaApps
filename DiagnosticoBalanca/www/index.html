@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>LUMAK DIAGNÓSTICO</title>
+        <link rel="stylesheet" href="css/styles.css">
+        <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: gap: https://ssl.gstatic.com 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; media-src *; img-src 'self' data: content:;">
+        <meta name="format-detection" content="telephone=no">
+        <meta name="msapplication-tap-highlight" content="no">
+        <meta name="viewport" content="initial-scale=1, width=device-width, viewport-fit=cover">
+        <meta name="color-scheme" content="light dark">
+    </head>
+    <body>
+        <div id="app">
+            <!-- Página Inicial -->
+            <div id="homePage" class="page active">
+                <div class="background-container">
+                    <div class="card">
+                        <h1>Scanner BLE</h1>
+                        <p style="text-align: center; margin-bottom: 20px; color: var(--text-secondary);">Controle seus dispositivos com elegância</p>
+                        <div class="button-group">
+                            <button id="btn-connect" class="btn btn-amber" data-page="connectPage">
+                                <span class="material-icons">device_hub</span> Conectar
+                            </button>
+                            <button id="btn-test-serial" class="btn btn-teal" data-page="serialTestPage">
+                                <span class="material-icons">send</span> Teste Serial
+                            </button>
+                            <button id="btn-test-cell" class="btn btn-purple" data-page="cellTestPage">
+                                <span class="material-icons">battery_charging_full</span> Teste Célula
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Página de Conexão -->
+            <div id="connectPage" class="page">
+                <div class="card">
+                    <h2>Conectar ao Dispositivo</h2>
+                    <p id="statusText" class="status-indicator">Clique em 'Escanear' para encontrar dispositivos BLE.</p>
+                    <select id="deviceSelect" disabled>
+                        <option value="">Selecione um dispositivo</option>
+                    </select>
+                    <div class="button-group">
+                        <button id="btn-scan" class="btn btn-amber">
+                            <span class="material-icons">search</span> Escanear
+                        </button>
+                        <button id="connectBtn" class="btn btn-amber" disabled>
+                            <span class="material-icons">bluetooth_connected</span> Conectar
+                        </button>
+                        <button class="btn" data-page="homePage">
+                            <span class="material-icons">arrow_back</span> Voltar
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Página de Teste Serial -->
+            <div id="serialTestPage" class="page">
+                <div class="card">
+                    <h2>Teste Serial</h2>
+                    <div class="data-card">
+                        <div class="card-title">TESTE SERIAL</div>
+                        <div id="serialData" class="card-value">Nenhum dado de serial recebido</div>
+                    </div>
+                    <p class="info-text" style="text-align: center; margin: 15px 0; color: var(--text-secondary);">
+                        Este teste mostra os dados recebidos pela porta serial da balança.
+                    </p>
+                    <div class="button-group">
+                        <button id="btn-refresh-serial" class="btn btn-teal">
+                            <span class="material-icons">refresh</span> Atualizar
+                        </button>
+                        <button class="btn" data-page="homePage">
+                            <span class="material-icons">arrow_back</span> Voltar
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Página de Teste de Célula -->
+            <div id="cellTestPage" class="page">
+                <div class="card">
+                    <h2>Teste Célula</h2>
+                    <div class="data-card">
+                        <div class="card-title">TESTE CÉLULA</div>
+                        <div id="cellData" class="card-value">Nenhum dado de mv recebido</div>
+                    </div>
+                    <p class="info-text" style="text-align: center; margin: 15px 0; color: var(--text-secondary);">
+                        Este teste mostra os valores em milivolts (mV) lidos diretamente da célula de carga.
+                    </p>
+                    <div class="button-group">
+                        <button id="btn-refresh-cell" class="btn btn-purple">
+                            <span class="material-icons">refresh</span> Atualizar
+                        </button>
+                        <button class="btn" data-page="homePage">
+                            <span class="material-icons">arrow_back</span> Voltar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script src="cordova.js"></script>
+        <script src="js/index.js"></script>
+        <script src="js/app.js"></script>
+    </body>
+</html> 
