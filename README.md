@@ -1,4 +1,4 @@
-# Balanças Apps LUMAK
+#  Apps LUMAK
 
 Este repositório contém dois aplicativos móveis desenvolvidos para o ecossistema de balanças LUMAK, ambos desenvolvidos com Apache Cordova para Android.
 
