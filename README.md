@@ -60,3 +60,4 @@ cd DiagnosticoBalanca
 ## Licença
 
 Apache License 2.0
+# CordovaApps
