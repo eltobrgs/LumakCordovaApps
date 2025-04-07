@@ -2,8 +2,8 @@
 const app = {
     // Constantes para UUIDs BLE
     SERVICE_UUID: "0000181A-0000-1000-8000-00805F9B34FB",
-    CHARACTERISTIC_UUID_SERIAL: "00002A6E-0000-1000-8000-00805F9B34FB",
-    CHARACTERISTIC_UUID_MV: "00002A6F-0000-1000-8000-00805F9B34FB",
+    CHARACTERISTIC_UUID_MV: "00002A6E-0000-1000-8000-00805F9B34FB",     // Para dados de MV/Célula
+    CHARACTERISTIC_UUID_SERIAL: "00002A6F-0000-1000-8000-00805F9B34FB", // Para dados de Serial
     
     // Variáveis de estado
     bleDevice: null,
@@ -32,7 +32,13 @@ const app = {
         this.setupEventListeners();
         
         // Checagem de permissões
-        this.checkPermissions();
+        setTimeout(() => {
+            console.log('Solicitando permissões ao iniciar');
+            this.checkPermissions(permissionsGranted => {
+                console.log('Resultado das permissões iniciais:', permissionsGranted);
+                this.permissionsRequested = true;
+            });
+        }, 1000);
         
         // Vibração para indicar que o app está pronto
         this.vibrate(100);
@@ -96,43 +102,107 @@ const app = {
     },
     
     // Checagem e solicitação de permissões necessárias
-    checkPermissions: function() {
-        if (window.cordova && window.cordova.plugins && window.cordova.plugins.permissions) {
-            const permissions = cordova.plugins.permissions;
-            const requiredPermissions = [
-                permissions.BLUETOOTH,
-                permissions.BLUETOOTH_ADMIN,
-                permissions.BLUETOOTH_SCAN,
-                permissions.BLUETOOTH_CONNECT,
-                permissions.ACCESS_FINE_LOCATION
-            ];
+    checkPermissions: function(callback) {
+        if (cordova.platformId === 'android') {
+            console.log('Verificando permissões no Android');
             
-            // Função para verificar permissões
-            const checkPermissionsCb = (status) => {
-                if (!status.hasPermission) {
-                    // Solicitar permissões
-                    permissions.requestPermissions(requiredPermissions, (status) => {
-                        if (status.hasPermission) {
-                            console.log("Permissões concedidas");
-                            this.permissionsRequested = true;
-                        } else {
-                            console.warn("Permissões negadas");
-                            this.updateStatusText("Permissões Bluetooth negadas. O aplicativo não funcionará corretamente.", "status-error");
-                        }
-                    }, () => {
-                        console.error("Erro ao solicitar permissões");
-                        this.updateStatusText("Erro ao solicitar permissões.", "status-error");
-                    });
-                } else {
-                    console.log("Já tem todas as permissões necessárias");
-                    this.permissionsRequested = true;
+            try {
+                const permissions = cordova.plugins.permissions;
+                if (!permissions) {
+                    console.error('Plugin de permissões não está disponível');
+                    alert('Plugin de permissões não está disponível. Reinstale o aplicativo.');
+                    if (callback) callback(false);
+                    return;
                 }
-            };
-            
-            // Verificar permissões
-            permissions.hasPermission(requiredPermissions, checkPermissionsCb, checkPermissionsCb);
+                
+                // Versão do Android
+                console.log('Device plugin:', device);
+                const androidVersion = device.version ? parseInt(device.version.split('.')[0]) : 0;
+                console.log('Android version: ' + androidVersion);
+                
+                // Lista de permissões a serem solicitadas
+                let permissionsToRequest = [];
+                
+                // Para versões anteriores ao Android 12
+                if (androidVersion < 12) {
+                    permissionsToRequest = [
+                        permissions.ACCESS_FINE_LOCATION,
+                        permissions.BLUETOOTH,
+                        permissions.BLUETOOTH_ADMIN
+                    ];
+                } else {
+                    // Para Android 12+
+                    permissionsToRequest = [
+                        permissions.BLUETOOTH_SCAN,
+                        permissions.BLUETOOTH_CONNECT,
+                        permissions.ACCESS_FINE_LOCATION
+                    ];
+                }
+                
+                console.log('Permissões a serem solicitadas:', permissionsToRequest);
+                
+                // Função para solicitar permissões de forma sequencial
+                const requestNextPermission = (index) => {
+                    if (index >= permissionsToRequest.length) {
+                        // Todas as permissões foram solicitadas
+                        this.permissionsRequested = true;
+                        console.log('Todas as permissões solicitadas');
+                        this.vibrate([100, 50, 100]); // Padrão de vibração para indicar conclusão
+                        if (callback) callback(true);
+                        return;
+                    }
+                    
+                    const permission = permissionsToRequest[index];
+                    console.log('Verificando permissão: ' + permission);
+                    
+                    permissions.checkPermission(permission, status => {
+                        console.log('Status da permissão ' + permission + ': ' + status.hasPermission);
+                        
+                        if (status.hasPermission) {
+                            // Já tem permissão, vá para a próxima
+                            console.log('Já tem permissão: ' + permission);
+                            requestNextPermission(index + 1);
+                        } else {
+                            // Solicitar permissão
+                            console.log('Solicitando permissão: ' + permission);
+                            this.vibrate(200); // Vibração mais longa para chamar atenção para a solicitação
+                            
+                            permissions.requestPermission(permission, 
+                                status => {
+                                    console.log('Resultado da solicitação de permissão ' + permission + ': ' + status.hasPermission);
+                                    // Continuar para a próxima permissão, independentemente do resultado
+                                    requestNextPermission(index + 1);
+                                },
+                                error => {
+                                    console.error('Erro ao solicitar permissão ' + permission + ':', error);
+                                    this.vibrate([100, 100, 300]); // Padrão de erro
+                                    // Continuar para a próxima permissão mesmo em caso de erro
+                                    requestNextPermission(index + 1);
+                                }
+                            );
+                        }
+                    }, error => {
+                        console.error('Erro ao verificar permissão ' + permission + ':', error);
+                        // Tentar solicitar mesmo se falhar na verificação
+                        permissions.requestPermission(permission, 
+                            () => requestNextPermission(index + 1),
+                            () => requestNextPermission(index + 1)
+                        );
+                    });
+                };
+                
+                // Iniciar solicitação de permissões
+                requestNextPermission(0);
+                
+            } catch (error) {
+                console.error('Erro ao verificar permissões:', error);
+                if (callback) callback(false);
+            }
         } else {
-            console.warn("Plugin de permissões não disponível");
+            // Não é Android, não precisa solicitar permissões
+            console.log('Não é Android, permissões não são necessárias');
+            this.permissionsRequested = true;
+            if (callback) callback(true);
         }
     },
     
@@ -179,6 +249,26 @@ const app = {
         // Atualizar status
         this.updateStatusText("Escaneando por dispositivos...", "status-connecting");
         
+        // Verificar permissões antes de escanear
+        if (!this.permissionsRequested) {
+            this.updateStatusText("Verificando permissões...", "status-connecting");
+            this.checkPermissions(permissionsGranted => {
+                console.log('Resultado da verificação de permissões:', permissionsGranted);
+                // Iniciar o escaneamento mesmo se as permissões não forem concedidas
+                // Em algumas versões do Android, nem todas as permissões são necessárias
+                setTimeout(() => {
+                    this.startScan();
+                }, 500);
+            });
+        } else {
+            this.startScan();
+        }
+    },
+    
+    // Iniciar escaneamento BLE
+    startScan: function() {
+        this.updateStatusText("Escaneando por dispositivos...", "status-connecting");
+        
         // Iniciar o escaneamento
         ble.scan([], 5, this.onDeviceDiscovered.bind(this), error => {
             console.error("Erro no escaneamento BLE: ", error);
@@ -221,8 +311,31 @@ const app = {
         this.updateStatusText(`Conectando ao dispositivo ${deviceId}...`, "status-connecting");
         this.elements.connectBtn.disabled = true;
         
+        // Verificar permissões novamente antes de conectar
+        if (!this.permissionsRequested) {
+            this.checkPermissions(permissionsGranted => {
+                // Tentar conectar independente do resultado das permissões
+                // Isso permite que o app funcione mesmo quando algumas permissões são negadas
+                this.connectToBleDevice(deviceId);
+            });
+        } else {
+            this.connectToBleDevice(deviceId);
+        }
+    },
+    
+    // Função para realizar a conexão BLE
+    connectToBleDevice: function(deviceId) {
+        console.log(`Iniciando conexão com o dispositivo: ${deviceId}`);
+        
         // Conectar ao dispositivo
-        ble.connect(deviceId, this.onConnected.bind(this), this.onDisconnected.bind(this));
+        ble.connect(
+            deviceId, 
+            this.onConnected.bind(this), 
+            error => {
+                console.error("Erro de conexão:", error);
+                this.onDisconnected(error);
+            }
+        );
     },
     
     // Callback para quando o dispositivo é conectado
@@ -231,11 +344,17 @@ const app = {
         this.bleDevice = device;
         this.isConnected = true;
         
+        // Limpar qualquer mensagem de erro de permissão
+        this.clearPermissionErrors();
+        
         // Vibrar para indicar conexão
         this.vibrate([100, 50, 100]);
         
         // Atualizar status
         this.updateStatusText("Conectado com sucesso!", "status-connected");
+        
+        // Inscrever-se para notificações de ambas as características
+        this.subscribeToNotifications();
         
         // Navegar para a página inicial
         setTimeout(() => {
@@ -243,9 +362,71 @@ const app = {
         }, 1000);
     },
     
+    // Inscrever-se para receber notificações contínuas das características
+    subscribeToNotifications: function() {
+        if (!this.isConnected || !this.bleDevice) {
+            console.error("Não é possível se inscrever para notificações: dispositivo não conectado");
+            return;
+        }
+        
+        // Notificações para dados seriais
+        console.log("Inscrevendo-se para notificações de dados seriais");
+        ble.startNotification(
+            this.bleDevice.id,
+            this.SERVICE_UUID,
+            this.CHARACTERISTIC_UUID_SERIAL,
+            data => {
+                try {
+                    const decoder = new TextDecoder('utf-8');
+                    const textData = decoder.decode(data);
+                    console.log("Notificação serial recebida:", textData);
+                    
+                    if (this.elements.serialData) {
+                        this.elements.serialData.textContent = `TESTE SERIAL: ${textData}`;
+                    }
+                } catch (error) {
+                    console.error("Erro ao processar notificação serial:", error);
+                }
+            },
+            error => {
+                console.error("Erro ao iniciar notificações seriais:", error);
+            }
+        );
+        
+        // Notificações para dados de célula (MV)
+        console.log("Inscrevendo-se para notificações de dados da célula");
+        ble.startNotification(
+            this.bleDevice.id,
+            this.SERVICE_UUID,
+            this.CHARACTERISTIC_UUID_MV,
+            data => {
+                try {
+                    const decoder = new TextDecoder('utf-8');
+                    const textData = decoder.decode(data);
+                    console.log("Notificação da célula recebida:", textData);
+                    
+                    if (this.elements.cellData) {
+                        this.elements.cellData.textContent = `TESTE CÉLULA: ${textData}`;
+                    }
+                } catch (error) {
+                    console.error("Erro ao processar notificação da célula:", error);
+                }
+            },
+            error => {
+                console.error("Erro ao iniciar notificações da célula:", error);
+            }
+        );
+    },
+    
     // Callback para quando o dispositivo é desconectado
     onDisconnected: function(error) {
         console.log("Desconectado: ", error);
+        
+        // Parar notificações se o dispositivo estava conectado anteriormente
+        if (this.bleDevice) {
+            this.stopNotifications();
+        }
+        
         this.bleDevice = null;
         this.isConnected = false;
         
@@ -266,8 +447,61 @@ const app = {
         // Vibrar para indicar desconexão
         this.vibrate(300);
         
-        // Atualizar status
-        this.updateStatusText("Dispositivo desconectado", "status-error");
+        // Atualizar status com mensagem apropriada
+        let errorMsg = "Dispositivo desconectado";
+        if (error) {
+            // Verificar se é um erro de permissão
+            if (typeof error === 'string' && error.includes('permission')) {
+                errorMsg = "Erro de permissão Bluetooth. Verifique as configurações do dispositivo.";
+            } else if (typeof error === 'object' && error.message && error.message.includes('permission')) {
+                errorMsg = "Erro de permissão Bluetooth. Verifique as configurações do dispositivo.";
+            }
+        }
+        
+        this.updateStatusText(errorMsg, "status-error");
+    },
+    
+    // Parar notificações das características
+    stopNotifications: function() {
+        if (!this.bleDevice) {
+            return;
+        }
+        
+        try {
+            console.log("Parando notificações de dados seriais");
+            ble.stopNotification(
+                this.bleDevice.id, 
+                this.SERVICE_UUID, 
+                this.CHARACTERISTIC_UUID_SERIAL,
+                () => console.log("Notificações seriais paradas com sucesso"),
+                error => console.error("Erro ao parar notificações seriais:", error)
+            );
+        } catch (e) {
+            console.error("Erro ao parar notificações seriais:", e);
+        }
+        
+        try {
+            console.log("Parando notificações de dados da célula");
+            ble.stopNotification(
+                this.bleDevice.id, 
+                this.SERVICE_UUID, 
+                this.CHARACTERISTIC_UUID_MV,
+                () => console.log("Notificações da célula paradas com sucesso"),
+                error => console.error("Erro ao parar notificações da célula:", error)
+            );
+        } catch (e) {
+            console.error("Erro ao parar notificações da célula:", e);
+        }
+    },
+    
+    // Limpa mensagens de erro relacionadas a permissões
+    clearPermissionErrors: function() {
+        if (this.elements.statusText) {
+            const text = this.elements.statusText.textContent;
+            if (text.includes("permissão") || text.includes("Permissões")) {
+                this.updateStatusText("", "");
+            }
+        }
     },
     
     // Ler dados da característica serial
@@ -282,10 +516,17 @@ const app = {
             this.SERVICE_UUID,
             this.CHARACTERISTIC_UUID_SERIAL,
             data => {
-                const decoder = new TextDecoder('utf-8');
-                const textData = decoder.decode(data);
-                console.log("Dados serial recebidos: ", textData);
-                this.elements.serialData.textContent = textData;
+                try {
+                    const decoder = new TextDecoder('utf-8');
+                    const textData = decoder.decode(data);
+                    console.log("Dados serial recebidos: ", textData);
+                    
+                    // Formatar o texto para exibição, similar ao código Python
+                    this.elements.serialData.textContent = `TESTE SERIAL: ${textData}`;
+                } catch (error) {
+                    console.error("Erro ao decodificar dados serial:", error);
+                    this.elements.serialData.textContent = "Erro ao processar dados";
+                }
             },
             error => {
                 console.error("Erro ao ler dados serial: ", error);
@@ -306,10 +547,17 @@ const app = {
             this.SERVICE_UUID,
             this.CHARACTERISTIC_UUID_MV,
             data => {
-                const decoder = new TextDecoder('utf-8');
-                const textData = decoder.decode(data);
-                console.log("Dados célula recebidos: ", textData);
-                this.elements.cellData.textContent = textData;
+                try {
+                    const decoder = new TextDecoder('utf-8');
+                    const textData = decoder.decode(data);
+                    console.log("Dados célula recebidos: ", textData);
+                    
+                    // Formatar o texto para exibição, similar ao código Python
+                    this.elements.cellData.textContent = `TESTE CÉLULA: ${textData}`;
+                } catch (error) {
+                    console.error("Erro ao decodificar dados de célula:", error);
+                    this.elements.cellData.textContent = "Erro ao processar dados";
+                }
             },
             error => {
                 console.error("Erro ao ler dados de célula: ", error);
@@ -323,6 +571,22 @@ const app = {
         // Parar qualquer atualização automática anterior
         this.stopAutoUpdate();
         
+        // Se estiver conectado, não precisamos de atualizações baseadas em timer
+        // porque já estamos recebendo notificações. Mas, como fallback,
+        // podemos ainda realizar leituras manuais.
+        if (this.isConnected) {
+            // Ler uma vez manualmente para garantir os dados iniciais
+            if (type === 'serial') {
+                this.readSerialData();
+            } else if (type === 'cell') {
+                this.readCellData();
+            }
+            
+            // Não iniciamos um timer porque já temos notificações
+            return;
+        }
+        
+        // Se não estiver conectado, mas ainda assim quiser tentar atualizações periódicas
         // Função de atualização
         const updateFunction = () => {
             if (type === 'serial') {
@@ -350,14 +614,26 @@ const app = {
     // Atualizar o texto de status
     updateStatusText: function(message, className) {
         if (this.elements.statusText) {
-            this.elements.statusText.textContent = message;
+            // Se o statusText estiver mostrando uma mensagem de erro de permissão,
+            // não substitua por mensagens menos importantes
+            const currentText = this.elements.statusText.textContent;
+            const isCurrentPermissionError = currentText.includes("permissão") || currentText.includes("Permissões");
+            const isNewPermissionError = message.includes("permissão") || message.includes("Permissões");
             
-            // Remover todas as classes de status
-            this.elements.statusText.classList.remove("status-error", "status-connecting", "status-connected");
-            
-            // Adicionar a classe específica se fornecida
-            if (className) {
-                this.elements.statusText.classList.add(className);
+            // Só atualiza o texto se:
+            // 1. A mensagem atual não é de erro de permissão, ou
+            // 2. A nova mensagem é de erro de permissão, ou
+            // 3. A nova mensagem está vazia (limpando o estado)
+            if (!isCurrentPermissionError || isNewPermissionError || message === "") {
+                this.elements.statusText.textContent = message;
+                
+                // Remover todas as classes de status
+                this.elements.statusText.classList.remove("status-error", "status-connecting", "status-connected");
+                
+                // Adicionar a classe específica se fornecida
+                if (className) {
+                    this.elements.statusText.classList.add(className);
+                }
             }
         }
     },
