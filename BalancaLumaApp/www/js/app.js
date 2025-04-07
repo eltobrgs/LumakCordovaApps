@@ -163,13 +163,46 @@ function setupEventListeners() {
         });
     }
     
-    // Botão de calibração
+    // Botão de calibração - Interceptar o evento de click
     const calibrationBtn = document.getElementById('btn-calibration-settings');
     if (calibrationBtn) {
+        // Remover o atributo data-page para que a navegação não ocorra automaticamente
+        calibrationBtn.removeAttribute('data-page');
+        
         calibrationBtn.addEventListener('click', function() {
             console.log('Botão de calibração clicado');
             vibrate(50);
             showCalibrationPage();
+        });
+    }
+    
+    // Botões do modal de senha
+    const confirmPasswordBtn = document.getElementById('confirmPasswordBtn');
+    if (confirmPasswordBtn) {
+        confirmPasswordBtn.addEventListener('click', function() {
+            console.log('Confirmando senha');
+            vibrate(50);
+            verifyCalibrationPassword();
+        });
+    }
+    
+    const cancelPasswordBtn = document.getElementById('cancelPasswordBtn');
+    if (cancelPasswordBtn) {
+        cancelPasswordBtn.addEventListener('click', function() {
+            console.log('Cancelando entrada de senha');
+            vibrate(50);
+            hidePasswordModal();
+        });
+    }
+    
+    // Event listener para o campo de senha (para detectar Enter)
+    const passwordInput = document.getElementById('calibrationPassword');
+    if (passwordInput) {
+        passwordInput.addEventListener('keyup', function(event) {
+            if (event.key === 'Enter') {
+                console.log('Enter pressionado no campo de senha');
+                verifyCalibrationPassword();
+            }
         });
     }
     
@@ -358,14 +391,67 @@ function showPrintSettings() {
 
 // Função para mostrar a página de calibração
 function showCalibrationPage() {
-    console.log('Exibindo página de calibração');
+    console.log('Solicitando senha para acesso à calibração');
     vibrate(50);
     
-    // Atualizar status de conexão na tela de calibração
-    updateCalibrationConnectionStatus();
+    // Mostrar o modal de senha
+    showPasswordModal();
+}
+
+// Função para mostrar o modal de senha
+function showPasswordModal() {
+    // Limpar o campo de senha e mensagem de erro
+    document.getElementById('calibrationPassword').value = '';
+    document.getElementById('passwordError').textContent = '';
     
-    // Mostrar a página de calibração
-    showPage('calibrationPage');
+    // Mostrar o modal
+    const modal = document.getElementById('passwordModal');
+    modal.classList.add('active');
+    
+    // Focar no campo de senha
+    setTimeout(() => {
+        document.getElementById('calibrationPassword').focus();
+    }, 300);
+}
+
+// Função para esconder o modal de senha
+function hidePasswordModal() {
+    const modal = document.getElementById('passwordModal');
+    modal.classList.remove('active');
+}
+
+// Função para verificar a senha
+function verifyCalibrationPassword() {
+    const passwordInput = document.getElementById('calibrationPassword');
+    const password = passwordInput.value.trim();
+    
+    // Gerar a senha baseada na data atual (DDMMAAAA)
+    const hoje = new Date();
+    const dia = String(hoje.getDate()).padStart(2, '0');
+    const mes = String(hoje.getMonth() + 1).padStart(2, '0'); // +1 porque os meses começam em 0
+    const ano = hoje.getFullYear();
+    const senhaCorreta = dia + mes + ano;
+    
+    console.log('Senha baseada na data de hoje:', senhaCorreta);
+    
+    if (password === senhaCorreta) {
+        // Senha correta, esconder o modal e mostrar a página de calibração
+        hidePasswordModal();
+        
+        // Atualizar status de conexão na tela de calibração
+        updateCalibrationConnectionStatus();
+        
+        // Mostrar a página de calibração
+        showPage('calibrationPage');
+    } else {
+        // Senha incorreta, mostrar mensagem de erro
+        document.getElementById('passwordError').textContent = 'Senha incorreta. Tente novamente.';
+        passwordInput.value = '';
+        passwordInput.focus();
+        
+        // Vibrar para indicar erro
+        vibrate([100, 50, 100, 50, 100]);
+    }
 }
 
 // Função para verificar e solicitar permissões no Android

@@ -2,8 +2,8 @@
 const app = {
     // Constantes para UUIDs BLE
     SERVICE_UUID: "0000181A-0000-1000-8000-00805F9B34FB",
-    CHARACTERISTIC_UUID_MV: "00002A6E-0000-1000-8000-00805F9B34FB",     // Para dados de MV/Célula
-    CHARACTERISTIC_UUID_SERIAL: "00002A6F-0000-1000-8000-00805F9B34FB", // Para dados de Serial
+    CHARACTERISTIC_UUID_SERIAL: "00002A6E-0000-1000-8000-00805F9B34FB", // Para dados de Serial (mesmo do ESP32)
+    CHARACTERISTIC_UUID_MV: "00002A6F-0000-1000-8000-00805F9B34FB",     // Para dados de MV/Célula (mesmo do ESP32)
     
     // Variáveis de estado
     bleDevice: null,
@@ -369,7 +369,7 @@ const app = {
             return;
         }
         
-        // Notificações para dados seriais
+        // Notificações para dados seriais (CHARACTERISTIC_UUID_SERIAL = 00002A6E)
         console.log("Inscrevendo-se para notificações de dados seriais");
         ble.startNotification(
             this.bleDevice.id,
@@ -382,6 +382,7 @@ const app = {
                     console.log("Notificação serial recebida:", textData);
                     
                     if (this.elements.serialData) {
+                        // No ESP32, a característica SERIAL envia "limitedData" que é o valor da serial
                         this.elements.serialData.textContent = `TESTE SERIAL: ${textData}`;
                     }
                 } catch (error) {
@@ -393,7 +394,7 @@ const app = {
             }
         );
         
-        // Notificações para dados de célula (MV)
+        // Notificações para dados de célula (MV) (CHARACTERISTIC_UUID_MV = 00002A6F)
         console.log("Inscrevendo-se para notificações de dados da célula");
         ble.startNotification(
             this.bleDevice.id,
@@ -406,6 +407,7 @@ const app = {
                     console.log("Notificação da célula recebida:", textData);
                     
                     if (this.elements.cellData) {
+                        // No ESP32, a característica MV envia "cargaStr" que contém "MV: X.XX"
                         this.elements.cellData.textContent = `TESTE CÉLULA: ${textData}`;
                     }
                 } catch (error) {
@@ -521,7 +523,7 @@ const app = {
                     const textData = decoder.decode(data);
                     console.log("Dados serial recebidos: ", textData);
                     
-                    // Formatar o texto para exibição, similar ao código Python
+                    // No ESP32, a característica SERIAL envia "limitedData" que é o valor da serial
                     this.elements.serialData.textContent = `TESTE SERIAL: ${textData}`;
                 } catch (error) {
                     console.error("Erro ao decodificar dados serial:", error);
@@ -552,7 +554,7 @@ const app = {
                     const textData = decoder.decode(data);
                     console.log("Dados célula recebidos: ", textData);
                     
-                    // Formatar o texto para exibição, similar ao código Python
+                    // No ESP32, a característica MV envia "cargaStr" que contém "MV: X.XX"
                     this.elements.cellData.textContent = `TESTE CÉLULA: ${textData}`;
                 } catch (error) {
                     console.error("Erro ao decodificar dados de célula:", error);

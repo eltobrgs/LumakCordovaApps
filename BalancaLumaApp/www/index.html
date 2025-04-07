@@ -243,6 +243,24 @@
             </div>
         </div>
 
+        <!-- Modal de Senha para Calibração -->
+        <div id="passwordModal" class="modal">
+            <div class="modal-content">
+                <h3>Acesso Restrito</h3>
+                <p>Digite a senha para acessar a calibração:</p>
+                <input type="password" id="calibrationPassword" class="input-field" placeholder="Senha">
+                <div class="button-group">
+                    <button id="confirmPasswordBtn" class="btn btn-save">
+                        <span class="material-icons">check</span> Confirmar
+                    </button>
+                    <button id="cancelPasswordBtn" class="btn btn-danger">
+                        <span class="material-icons">close</span> Cancelar
+                    </button>
+                </div>
+                <p id="passwordError" class="error-message"></p>
+            </div>
+        </div>
+
         <!-- Indicador de Status Bluetooth -->
         <div id="bluetoothStatus" class="bluetooth-status">
             <span class="material-icons">bluetooth</span>
