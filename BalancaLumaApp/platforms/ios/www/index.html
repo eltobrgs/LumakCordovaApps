@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<!--
+    Licensed to the Apache Software Foundation (ASF) under one
+    or more contributor license agreements.  See the NOTICE file
+    distributed with this work for additional information
+    regarding copyright ownership.  The ASF licenses this file
+    to you under the Apache License, Version 2.0 (the
+    "License"); you may not use this file except in compliance
+    with the License.  You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing,
+    software distributed under the License is distributed on an
+    "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+     KIND, either express or implied.  See the License for the
+    specific language governing permissions and limitations
+    under the License.
+-->
+<html lang="pt-BR">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>LUMAK BALANÇAS</title>
+        <link rel="stylesheet" href="css/styles.css">
+        <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+        <!--
+        Customize this policy to fit your own app's needs. For more guidance, please refer to the docs:
+            https://cordova.apache.org/docs/en/latest/
+        Some notes:
+            * https://ssl.gstatic.com is required only on Android and is needed for TalkBack to function properly
+            * Disables use of inline scripts in order to mitigate risk of XSS vulnerabilities. To change this:
+                * Enable inline JS: add 'unsafe-inline' to default-src
+        -->
+        <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: gap: https://ssl.gstatic.com 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; media-src *; img-src 'self' data: content:;">
+        <meta name="format-detection" content="telephone=no">
+        <meta name="msapplication-tap-highlight" content="no">
+        <meta name="viewport" content="initial-scale=1, width=device-width, viewport-fit=cover">
+        <meta name="color-scheme" content="light dark">
+    </head>
+    <body>
+        <div id="app">
+            <!-- Página Inicial -->
+            <div id="homePage" class="page active">
+                <div class="background-container">
+                    <div class="card">
+                        <h1>LUMAK PESO</h1>
+                        <div class="button-group">
+                            <button id="btn-connect" class="btn" data-page="connectionPage">
+                                <span class="material-icons">link</span> Conectar
+                            </button>
+                            <button id="btn-scale" class="btn" data-page="scalePage">
+                                <span class="material-icons">scale</span> Balança
+                            </button>
+                            <button id="btn-history" class="btn" data-page="historyPage">
+                                <span class="material-icons">history</span> Histórico
+                            </button>
+                            <button id="btn-settings" class="btn">
+                                <span class="material-icons">settings</span> Configuração
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Página de Conexão -->
+            <div id="connectionPage" class="page">
+                <div class="card">
+                    <h2>Conectar a Balança</h2>
+                    <p id="statusText">Clique em 'Escanear' para encontrar dispositivos BLE.</p>
+                    <select id="deviceSelect" disabled>
+                        <option value="">Selecione um dispositivo</option>
+                    </select>
+                    <div class="button-group">
+                        <button id="btn-scan" class="btn">
+                            <span class="material-icons">search</span> Escanear
+                        </button>
+                        <button id="connectBtn" class="btn" disabled>
+                            <span class="material-icons">bluetooth_connected</span> Conectar
+                        </button>
+                        <button class="btn" data-page="homePage">
+                            <span class="material-icons">arrow_back</span> Voltar
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Página da Balança -->
+            <div id="scalePage" class="page">
+                <div class="card">
+                    <h2>Dados da Balança</h2>
+                    <div id="weightDisplay" class="weight-display">
+                        <span id="weightValue">Aguardando dados...</span>
+                        <span id="weightValueArroba" class="weight-arroba">0,00 @</span>
+                    </div>
+                    <div id="savedData" class="saved-data"></div>
+                    <input type="text" id="braceletInput" placeholder="Número do Brinco ou Nome do Animal" class="input-field">
+                    <div class="button-group">
+                        <button id="btn-save" class="btn">
+                            <span class="material-icons">save</span> Salvar no App
+                        </button>
+                        <button id="btn-disconnect" class="btn">
+                            <span class="material-icons">bluetooth_disabled</span> Desconectar
+                        </button>
+                    </div>
+                    <button class="btn" data-page="homePage">
+                        <span class="material-icons">arrow_back</span> Voltar
+                    </button>
+                </div>
+            </div>
+
+            <!-- Página de Histórico de Pesagem -->
+            <div id="historyPage" class="page">
+                <div class="card">
+                    <h2>Histórico de Pesagem</h2>
+                    <div id="historyList" class="history-list"></div>
+                    <div class="button-group">
+                        <button id="btn-clear-all" class="btn btn-danger">
+                            <span class="material-icons">delete_sweep</span> Limpar Tudo
+                        </button>
+                        <button id="btn-export-history" class="btn btn-export">
+                            <span class="material-icons">description</span> Exportar Histórico
+                        </button>
+                        <button id="btn-print-history" class="btn btn-print">
+                            <span class="material-icons">print</span> Imprimir Histórico
+                        </button>
+                    </div>
+                    <button class="btn" data-page="homePage">
+                        <span class="material-icons">arrow_back</span> Voltar
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Página de Configurações -->
+            <div id="settingsPage" class="page">
+                <div class="card">
+                    <h2>Configurações</h2>
+                    
+                    <div class="settings-options">
+                        <div class="settings-option">
+                            <h3>Configuração de Impressão</h3>
+                            <p>Personalize o cabeçalho dos relatórios impressos</p>
+                            <button id="btn-print-settings" class="btn btn-option" data-page="printSettingsPage">
+                                <span class="material-icons">print</span> Editar Cabeçalho
+                            </button>
+                        </div>
+                        
+                        <div class="settings-option">
+                            <h3>Calibração da Balança</h3>
+                            <p>Calibre sua balança para garantir medições precisas</p>
+                            <button id="btn-calibration-settings" class="btn btn-option" data-page="calibrationPage">
+                                <span class="material-icons">scale</span> Calibrar Balança
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <button class="btn" data-page="homePage">
+                        <span class="material-icons">arrow_back</span> Voltar
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Página de Configuração de Impressão -->
+            <div id="printSettingsPage" class="page">
+                <div class="card">
+                    <h2>Cabeçalho de Impressão</h2>
+                    <p class="settings-description">Personalize o texto que aparecerá no topo dos relatórios impressos.</p>
+                    
+                    <div class="settings-form">
+                        <div class="form-group">
+                            <label for="headerLine1">Linha 1 (Título):</label>
+                            <input type="text" id="headerLine1" class="input-field" placeholder="Ex: RELATORIO DE PESAGEM">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="headerLine2">Linha 2 (Subtítulo):</label>
+                            <input type="text" id="headerLine2" class="input-field" placeholder="Ex: LUMAK BALANCAS">
+                        </div>
+                        
+                        <div class="preview-section">
+                            <h4>Prévia:</h4>
+                            <div class="receipt-preview">
+                                <div id="previewHeader1">RELATORIO DE PESAGEM</div>
+                                <div id="previewHeader2">LUMAK BALANCAS</div>
+                                <div>--------------------------------</div>
+                                <div>Data: DD/MM/YYYY</div>
+                                <div>BRINCO      PESO        DATA</div>
+                                <div>--------------------------------</div>
+                                <div>12345       000.45 Kg   DD/MM</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="button-group">
+                        <button id="btn-save-settings" class="btn btn-save">
+                            <span class="material-icons">save</span> Salvar Configurações
+                        </button>
+                    </div>
+                    
+                    <button class="btn" data-page="settingsPage">
+                        <span class="material-icons">arrow_back</span> Voltar
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Página de Calibração -->
+            <div id="calibrationPage" class="page">
+                <div class="card">
+                    <h2>Calibração da Balança</h2>
+                    <p class="settings-description">Calibre sua balança seguindo os passos abaixo:</p>
+                    
+                    <div id="calibration-status" class="status-message">
+                        Conecte-se a uma balança para iniciar a calibração
+                    </div>
+                    
+                    <div class="calibration-steps">
+                        <div class="step" id="step1">
+                            <div class="step-number">1</div>
+                            <div class="step-content">
+                                <p>Inicie o processo de calibração da balança</p>
+                                <button id="btn-start-calibration" class="btn" disabled>
+                                    <span class="material-icons">play_arrow</span> Iniciar Calibração
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="step" id="step2">
+                            <div class="step-number">2</div>
+                            <div class="step-content">
+                                <p>Insira o peso de referência (em kg)</p>
+                                <div class="form-group">
+                                    <input type="number" id="refWeight" class="input-field" placeholder="Ex: 5.0" step="0.01" min="0.1" disabled>
+                                    <button id="btn-send-weight" class="btn" disabled>
+                                        <span class="material-icons">send</span> Enviar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="step" id="step3">
+                            <div class="step-number">3</div>
+                            <div class="step-content">
+                                <p>Coloque o peso na balança e confirme a calibração</p>
+                                <button id="btn-confirm-calibration" class="btn" disabled>
+                                    <span class="material-icons">check</span> Confirmar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button class="btn" data-page="settingsPage">
+                        <span class="material-icons">arrow_back</span> Voltar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Indicador de Status Bluetooth -->
+        <div id="bluetoothStatus" class="bluetooth-status">
+            <span class="material-icons">bluetooth</span>
+        </div>
+
+        <script type="text/javascript" src="cordova.js"></script>
+        <script src="js/app.js"></script>
+    </body>
+</html>

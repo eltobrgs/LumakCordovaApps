@@ -1,0 +1,21 @@
+{
+    "name": "LUMAK BALANÇAS",
+    "short_name": "LUMAK",
+    "description": "Aplicativo para controle de balança via Bluetooth",
+    "start_url": "./index.html",
+    "display": "standalone",
+    "background_color": "#121212",
+    "theme_color": "#1E88E5",
+    "icons": [
+        {
+            "src": "img/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "img/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+} 
