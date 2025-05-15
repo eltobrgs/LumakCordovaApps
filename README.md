@@ -61,3 +61,4 @@ cd DiagnosticoBalanca
 
 Apache License 2.0
 # CordovaApps
+# LumakCordovaApps
