@@ -114,26 +114,123 @@ O aplicativo oferece duas configurações principais, acessíveis a partir da te
 - Use um peso de referência preciso e conhecido
 - Remova completamente o peso entre as etapas de calibração
 
-## 🔌 Plugins Usados
+## 🔌 Plugins e Platforms
 
-- cordova-plugin-ble-central: Para comunicação Bluetooth BLE
-- cordova-plugin-android-permissions: Para gerenciamento de permissões
-- cordova-plugin-device: Para informações do dispositivo
-- cordova-plugin-vibration: Para feedback tátil
-- cordova-plugin-file: Para exportação de arquivos
-- cordova-plugin-file-opener2: Para abrir arquivos exportados
-
-## 🏗️ Compilação
+### Instalação do Cordova
+Antes de começar, certifique-se de ter o Cordova instalado globalmente:
 
 ```bash
-# Instalar dependências
+npm install -g cordova
+```
+
+### Iniciando um Novo Projeto (Caso Esteja Criando do Zero)
+Se você está iniciando um novo projeto:
+
+```bash
+# Criar novo projeto
+cordova create BalancaLumaApp com.lumak.balanca "LUMAK Balanças"
+
+# Entrar no diretório do projeto
+cd BalancaLumaApp
+```
+
+### Adicionar Platforms
+Adicione as plataformas necessárias (este aplicativo é focado no Android):
+
+```bash
+# Adicionar plataforma Android
+cordova platform add android
+
+# Para desenvolvimento iOS (opcional)
+cordova platform add ios
+```
+
+### Adicionar Plugins Necessários
+O aplicativo utiliza os seguintes plugins que precisam ser instalados:
+
+```bash
+# Plugin principal para comunicação Bluetooth BLE
+cordova plugin add cordova-plugin-ble-central
+
+# Plugin para gerenciamento de permissões no Android
+cordova plugin add cordova-plugin-android-permissions
+
+# Plugin para obter informações do dispositivo
+cordova plugin add cordova-plugin-device
+
+# Plugin para feedback de vibração
+cordova plugin add cordova-plugin-vibration
+
+# Plugin para operações de arquivo (exportação)
+cordova plugin add cordova-plugin-file
+
+# Plugin para abrir arquivos exportados
+cordova plugin add cordova-plugin-file-opener2
+
+# Plugin para acesso ao diretório de downloads (opcional)
+cordova plugin add cordova-plugin-file-transfer
+```
+
+### Verificar Plugins e Platforms Instalados
+Para verificar se tudo foi instalado corretamente:
+
+```bash
+# Listar plataformas
+cordova platform ls
+
+# Listar plugins
+cordova plugin ls
+```
+
+### Permissões Necessárias
+Certifique-se de que o arquivo `config.xml` contém as permissões necessárias para Android:
+
+```xml
+<platform name="android">
+    <config-file parent="/manifest" target="AndroidManifest.xml">
+        <uses-permission android:name="android.permission.BLUETOOTH" />
+        <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+        <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+        <!-- Para Android 12+ -->
+        <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+        <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    </config-file>
+</platform>
+```
+
+## 🏗️ Compilação e Execução
+
+```bash
+# Instalar dependências (se houver package.json)
 npm install
+
+# Verificar requisitos para build
+cordova requirements
 
 # Compilar para Android
 cordova build android
 
+# Compilar em modo debug
+cordova build android --debug
+
+# Compilar em modo release
+cordova build android --release
+
 # Executar em um dispositivo conectado
 cordova run android
+
+# Executar em um emulador
+cordova emulate android
+```
+
+### Assinando o APK para Distribuição
+
+```bash
+# Gerar uma keystore (apenas uma vez)
+keytool -genkey -v -keystore lumak-balanca.keystore -alias lumak-balanca -keyalg RSA -keysize 2048 -validity 10000
+
+# Build com assinatura
+cordova build android --release -- --keystore=lumak-balanca.keystore --storePassword=sua_senha --alias=lumak-balanca --password=sua_senha
 ```
 
 ## 📄 Licença

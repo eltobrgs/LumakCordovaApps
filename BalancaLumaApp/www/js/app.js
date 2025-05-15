@@ -8,6 +8,7 @@ let bleDevice = null;
 let isConnected = false;
 let foundDevices = {};
 let permissionsRequested = false;
+let lastConnectedDeviceId = null; // Armazenar o ID do último dispositivo conectado
 
 // Variáveis para calibração
 let calibrando = false;
@@ -39,6 +40,7 @@ let headerLine2Input = null;
 let previewHeader1 = null;
 let previewHeader2 = null;
 let btnZeroScaleMain = null;
+let connectionStatusMessage = null; // Novo elemento para status de conexão
 
 // Elementos de calibração
 let calibrationStatus = null;
@@ -48,8 +50,96 @@ let btnConfirmCalibration = null;
 let btnZeroScale = null;
 let refWeightInput = null;
 
+// Adicionar declarações das variáveis para os novos elementos
+let divisaoInput = null;
+let capacidadeInput = null;
+let btnSetDivision = null;
+let btnSetCapacity = null;
+
 // Evento de inicialização
 document.addEventListener('deviceready', onDeviceReady, false);
+
+// Função para salvar o ID do último dispositivo conectado
+function saveLastConnectedDevice(deviceId) {
+    console.log('Salvando último dispositivo conectado:', deviceId);
+    lastConnectedDeviceId = deviceId;
+    localStorage.setItem('lastConnectedDevice', deviceId);
+}
+
+// Função para carregar o ID do último dispositivo conectado
+function loadLastConnectedDevice() {
+    const deviceId = localStorage.getItem('lastConnectedDevice');
+    console.log('Carregando último dispositivo conectado:', deviceId);
+    lastConnectedDeviceId = deviceId;
+    return deviceId;
+}
+
+// Função para tentar conectar automaticamente ao último dispositivo
+function tryAutoConnect() {
+    const deviceId = loadLastConnectedDevice();
+    if (deviceId) {
+        console.log('Tentando conectar automaticamente ao dispositivo:', deviceId);
+        setTimeout(() => {
+            // Mostrar um toast informando a tentativa de conexão
+            showToast('Conectando ao último dispositivo...', 3000);
+            
+            // Atualizar mensagem de status
+            updateConnectionStatusMessage('Conectando automaticamente...', 'status-connecting');
+            
+            // Tentar conectar ao dispositivo
+            try {
+                ble.connect(deviceId, 
+                    peripheral => {
+                        console.log('Conectado automaticamente com sucesso!');
+                        onConnectSuccess(peripheral);
+                        showToast('Conectado automaticamente!', 2000);
+                    }, 
+                    error => {
+                        console.error('Falha na conexão automática:', error);
+                        showToast('Falha na conexão automática. Conecte manualmente.', 3000);
+                        updateConnectionStatusMessage('Falha na conexão automática. Use o Menu > Conectar.', 'status-error');
+                    }
+                );
+            } catch (error) {
+                console.error('Erro ao tentar conexão automática:', error);
+                updateConnectionStatusMessage('Erro na conexão. Use o Menu > Conectar.', 'status-error');
+            }
+        }, 2000); // Atraso para dar tempo de inicializar o BLE
+    } else {
+        updateConnectionStatusMessage('Não conectado à balança. Use o Menu > Conectar.', '');
+    }
+}
+
+// Função para mostrar um toast (mensagem temporária)
+function showToast(message, duration) {
+    // Criar um elemento toast
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = message;
+    
+    // Estilizar diretamente
+    toast.style.position = 'fixed';
+    toast.style.bottom = '20px';
+    toast.style.left = '50%';
+    toast.style.transform = 'translateX(-50%)';
+    toast.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+    toast.style.color = 'white';
+    toast.style.padding = '12px 20px';
+    toast.style.borderRadius = '8px';
+    toast.style.fontSize = '16px';
+    toast.style.zIndex = '9999';
+    toast.style.textAlign = 'center';
+    
+    // Adicionar ao corpo do documento
+    document.body.appendChild(toast);
+    
+    // Remover após a duração especificada
+    setTimeout(() => {
+        if (document.body.contains(toast)) {
+            document.body.removeChild(toast);
+        }
+    }, duration);
+}
 
 function onDeviceReady() {
     console.log('Cordova está pronto');
@@ -69,6 +159,7 @@ function onDeviceReady() {
     previewHeader1 = document.getElementById('previewHeader1');
     previewHeader2 = document.getElementById('previewHeader2');
     btnZeroScaleMain = document.getElementById('btn-zero-scale-main');
+    connectionStatusMessage = document.getElementById('connection-status-message');
     
     // Inicializar elementos de calibração
     calibrationStatus = document.getElementById('calibration-status');
@@ -77,6 +168,12 @@ function onDeviceReady() {
     btnConfirmCalibration = document.getElementById('btn-confirm-calibration');
     btnZeroScale = document.getElementById('btn-zero-scale');
     refWeightInput = document.getElementById('refWeight');
+    
+    // Inicializar novos elementos de calibração
+    divisaoInput = document.getElementById('divisaoInput');
+    capacidadeInput = document.getElementById('capacidadeInput');
+    btnSetDivision = document.getElementById('btn-set-division');
+    btnSetCapacity = document.getElementById('btn-set-capacity');
     
     // Adicionar eventos para os botões
     setupEventListeners();
@@ -87,6 +184,11 @@ function onDeviceReady() {
         checkPermissions(permissionsGranted => {
             console.log('Resultado das permissões iniciais:', permissionsGranted);
             permissionsRequested = true;
+            
+            // Tentar conectar automaticamente após obter permissões
+            if (permissionsGranted) {
+                tryAutoConnect();
+            }
         });
     }, 1000);
     
@@ -104,6 +206,15 @@ function onDeviceReady() {
     
     // Log de informações para debug
     logDeviceInfo();
+    
+    // Atualizar status da conexão
+    updateConnectionStatus();
+    
+    // Definir mensagem inicial de status
+    updateConnectionStatusMessage('Não conectado à balança', '');
+    
+    // Mostrar a página da balança como página inicial em vez da homepage
+    showPage('scalePage');
 }
 
 // Função para logar informações do dispositivo
@@ -159,6 +270,16 @@ function setupEventListeners() {
             }
         });
     });
+    
+    // Botão de menu para ir para a homepage
+    const menuBtn = document.getElementById('btn-menu');
+    if (menuBtn) {
+        menuBtn.addEventListener('click', function() {
+            console.log('Botão de menu clicado');
+            vibrate(50);
+            showPage('homePage');
+        });
+    }
     
     // Botão de configurações
     const settingsBtn = document.getElementById('btn-settings');
@@ -256,7 +377,28 @@ function setupEventListeners() {
         btnZeroScaleMain.addEventListener('click', function() {
             console.log('Botão de zerar balança (tela principal) clicado');
             vibrate(100);
-            zeroScale();
+            resetScale(); // Usar a nova função resetScale em vez de zeroScale
+        });
+    }
+    
+    // Botão de tarar na tela principal
+    const btnTare = document.getElementById('btn-tare');
+    if (btnTare) {
+        btnTare.addEventListener('click', function() {
+            console.log('Botão de tarar balança clicado');
+            vibrate(100);
+            zeroScale(); // Continuar usando zeroScale para o botão de tarar
+        });
+    }
+    
+    // Botão de ver histórico na tela da balança
+    const btnHistoryLink = document.getElementById('btn-history-link');
+    if (btnHistoryLink) {
+        btnHistoryLink.addEventListener('click', function() {
+            console.log('Botão de ver histórico clicado');
+            vibrate(50);
+            showPage('historyPage');
+            loadHistory();
         });
     }
     
@@ -339,6 +481,23 @@ function setupEventListeners() {
             console.log('Botão de zerar balança clicado');
             vibrate(100);
             zeroScale();
+        });
+    }
+    
+    // Event listeners para os novos botões de configuração de divisão e capacidade
+    if (btnSetDivision) {
+        btnSetDivision.addEventListener('click', function() {
+            console.log('Botão de configurar divisão clicado');
+            vibrate(100);
+            enviarConfigDivisao();
+        });
+    }
+    
+    if (btnSetCapacity) {
+        btnSetCapacity.addEventListener('click', function() {
+            console.log('Botão de configurar capacidade máxima clicado');
+            vibrate(100);
+            enviarConfigCapacidade();
         });
     }
     
@@ -799,6 +958,12 @@ function onConnectSuccess(peripheral) {
     isConnected = true;
     bluetoothStatus.classList.add('connected');
     
+    // Salvar o ID do dispositivo conectado para reconexão automática
+    saveLastConnectedDevice(peripheral.id);
+    
+    // Atualizar mensagem de status
+    updateConnectionStatusMessage('Conectado à balança', 'status-connected');
+    
     // Tentar iniciar notificações da característica principal
     try {
         console.log("Iniciando notificações:", SERVICE_UUID, CHARACTERISTIC_UUID);
@@ -826,12 +991,16 @@ function onConnectSuccess(peripheral) {
                     
                     // Processamento normal de dados
                     processaValorRecebido(value);
+                    
+                    // Atualizar mensagem de status quando dados são recebidos
+                    updateConnectionStatusMessage('Recebendo dados da balança', 'status-connected');
                 } catch (error) {
                     console.error("Erro ao processar dados:", error);
                 }
             },
             error => {
                 console.error("Erro ao receber notificações:", error);
+                updateConnectionStatusMessage('Erro ao receber dados', 'status-error');
             }
         );
         
@@ -839,9 +1008,14 @@ function onConnectSuccess(peripheral) {
     } catch (error) {
         console.log('Falha ao configurar notificações:', error);
         statusText.textContent = '✅ Conectado (erro nas notificações)';
+        updateConnectionStatusMessage('Conectado, mas com erros', 'status-error');
     }
     
-    showPage('scalePage');
+    // Não precisamos mais redirecionar para a página da balança,
+    // pois já estamos nela na interface nova
+    
+    // Atualizar status da conexão
+    updateConnectionStatus();
     
     // Atualizar status da calibração
     atualizarStatusCalibracao();
@@ -879,19 +1053,25 @@ function disconnect() {
     console.log("Função disconnect chamada");
     if (isConnected && bleDevice) {
         try {
+            // Atualizar mensagem de status
+            updateConnectionStatusMessage('Desconectando...', 'status-connecting');
+            
             ble.disconnect(bleDevice.id, 
                 () => {
                     console.log('Desconectado com sucesso');
                     vibrate([50, 100, 50]); // Padrão de desconexão
+                    updateConnectionStatusMessage('Desconectado da balança', '');
                 },
                 error => {
                     console.error('Erro ao desconectar:', error);
                     vibrate([100, 100, 300]); // Padrão de erro
+                    updateConnectionStatusMessage('Erro ao desconectar', 'status-error');
                 }
             );
         } catch (error) {
             console.error('Erro ao desconectar:', error);
             vibrate([100, 100, 300]); // Padrão de erro
+            updateConnectionStatusMessage('Erro ao desconectar', 'status-error');
         }
     }
     
@@ -900,7 +1080,27 @@ function disconnect() {
     bluetoothStatus.classList.remove('connected');
     weightValue.textContent = 'Aguardando dados...';
     
-    showPage('homePage');
+    // Atualizar status da conexão
+    updateConnectionStatus();
+    
+    // Permanecer na página da balança, apenas atualizar o status
+    // Não é mais necessário navegar para a homePage
+}
+
+// Função para atualizar elementos da interface baseado no status da conexão
+function updateConnectionStatus() {
+    // Mostra "0,0 kg" quando não há conexão, com kg menor
+    if (!isConnected && weightValue) {
+        weightValue.innerHTML = '0,0 <span class="weight-unit">kg</span>';
+        
+        // Verificar se há um último dispositivo conhecido
+        const lastDevice = loadLastConnectedDevice();
+        if (!lastDevice) {
+            updateConnectionStatusMessage('Não conectado à balança. Use o Menu > Conectar.', '');
+        }
+    } else if (isConnected) {
+        updateConnectionStatusMessage('Conectado à balança', 'status-connected');
+    }
 }
 
 // Funções de dados
@@ -908,7 +1108,6 @@ function saveData() {
     console.log("Função saveData chamada");
     const bracelet = braceletInput.value.trim();
     const weightKg = weightValue.textContent;
-    const weightArroba = weightValueArroba ? weightValueArroba.textContent : '';
     
     if (weightKg !== 'Aguardando dados...') {
         // Salvar no localStorage
@@ -922,31 +1121,19 @@ function saveData() {
             numericWeightKg = weightKg;
         }
         
-        // Extrair valor numérico do peso em arrobas
-        let numericWeightArroba = '';
-        if (weightArroba) {
-            if (weightArroba.includes('🐄')) {
-                numericWeightArroba = weightArroba.replace('🐄', '').trim();
-            } else {
-                numericWeightArroba = weightArroba;
-            }
-        }
-        
-        // Criar novo objeto de medição (usar "Sem identificação" se brinco estiver vazio)
+        // Criar novo objeto de medição (usar "Sem identificação" se o campo estiver vazio)
         const newMeasurement = {
             id: Date.now().toString(), // ID único baseado no timestamp
             bracelet: bracelet || "N/T",
             weight: weightKg,
-            weightArroba: weightArroba,
             numericWeightKg: numericWeightKg.replace(/[^\d.,]/g, '').trim(),
-            numericWeightArroba: numericWeightArroba.replace(/[^\d.,]/g, '').trim(),
             timestamp: new Date().toISOString()
         };
         
         savedMeasurements.push(newMeasurement);
         localStorage.setItem('measurements', JSON.stringify(savedMeasurements));
         
-        // Limpar campo do brinco
+        // Limpar campo de identificação
         braceletInput.value = '';
         vibrate([50, 50, 150]); // Vibração para indicar salvamento bem-sucedido
         
@@ -1005,48 +1192,9 @@ function loadSavedData() {
         return;
     }
     
-    // Limpar o conteúdo
-    savedData.innerHTML = '';
-    
-    // Primeiro adicionar o botão Zerar
-    const zeroButtonDiv = document.createElement('div');
-    zeroButtonDiv.style.textAlign = 'center';
-    zeroButtonDiv.style.marginBottom = '10px';
-    zeroButtonDiv.innerHTML = `
-        <button id="btn-zero-scale-main" class="btn">
-            <span class="material-icons">equalizer</span> Zerar
-        </button>
-    `;
-    savedData.appendChild(zeroButtonDiv);
-    
-    // Depois adicionar link para o histórico
-    const historyLink = document.createElement('div');
-    historyLink.innerHTML = '<button id="goto-history" class="btn btn-small">Ver Histórico</button>';
-    historyLink.style.textAlign = 'center';
-    historyLink.style.marginTop = '5px';
-    savedData.appendChild(historyLink);
-    
-    // Adicionar evento para o botão de zerar
-    setTimeout(() => {
-        const zeroBtn = document.getElementById('btn-zero-scale-main');
-        if (zeroBtn) {
-            zeroBtn.addEventListener('click', function() {
-                console.log('Botão de zerar balança (tela principal) clicado');
-                vibrate(100);
-                zeroScale();
-            });
-        }
-        
-        // Adicionar evento para o botão de histórico
-        const gotoHistoryBtn = document.getElementById('goto-history');
-        if (gotoHistoryBtn) {
-            gotoHistoryBtn.addEventListener('click', function() {
-                vibrate(50);
-                showPage('historyPage');
-                loadHistory();
-            });
-        }
-    }, 100);
+    // Como estamos ocultando a div savedData na nova interface, não precisamos criar elementos
+    // Deixando esta função mais simples
+    console.log("loadSavedData chamada, mas não criando elementos devido ao novo layout");
 }
 
 // Carregar histórico completo
@@ -1077,27 +1225,6 @@ function loadHistory() {
             weightValue = weightValue.replace('📊 Peso:', '').trim();
         }
         
-        // Verificar se já temos o peso em arroba ou precisamos calcular
-        let weightArrobaValue = '';
-        if (measurement.weightArroba) {
-            // Já temos o valor em arroba
-            if (measurement.weightArroba.includes('🐄')) {
-                weightArrobaValue = measurement.weightArroba.replace('🐄', '').trim();
-            } else {
-                weightArrobaValue = measurement.weightArroba;
-            }
-        } else if (measurement.numericWeightArroba) {
-            // Utilizamos o valor numérico em arroba
-            weightArrobaValue = measurement.numericWeightArroba + ' @';
-        } else {
-            // Precisamos calcular a partir do peso em kg
-            const numericWeightKg = parseFloat(weightValue.replace(/[^\d.,]/g, '').replace(',', '.'));
-            if (!isNaN(numericWeightKg)) {
-                const pesoArroba = (numericWeightKg * KG_TO_ARROBA).toFixed(2).replace('.', ',');
-                weightArrobaValue = pesoArroba + ' @';
-            }
-        }
-        
         // Formatar a data/hora para formato brasileiro
         const dateTime = new Date(measurement.timestamp);
         const formattedDateTime = dateTime.toLocaleString('pt-BR');
@@ -1109,7 +1236,6 @@ function loadHistory() {
             <div class="history-item-id">${measurement.bracelet}</div>
             <div class="history-item-details">
                 <div class="history-item-weight">${weightValue}</div>
-                <div class="history-item-weight-arroba">${weightArrobaValue}</div>
                 <div class="history-item-date">${formattedDateTime}</div>
             </div>
             <button class="btn-delete" data-id="${measurement.id}">
@@ -1389,7 +1515,7 @@ function connectToBLEPrinter(device) {
                 printData += "Data: " + new Date().toLocaleDateString('pt-BR') + "\r\n\r\n";
                 
                 // Cabeçalho com colunas bem definidas e sem quebra
-                printData += "BRINCO    PESO(KG)  PESO(@)  HORA \r\n";
+                printData += "IDENTIFICAÇÃO    PESO(KG)  HR \r\n";
                 printData += "--------------------------------\r\n";
                 
                 // Limitar a quantidade de itens
@@ -1397,7 +1523,6 @@ function connectToBLEPrinter(device) {
                 
                 // Variáveis para totalizar os pesos
                 let totalPesoKg = 0;
-                let totalPesoArroba = 0;
                 
                 // Adicionar cada medição - formato mais compacto
                 for (let i = 0; i < maxItems; i++) {
@@ -1409,15 +1534,11 @@ function connectToBLEPrinter(device) {
                         weightValue = weightValue.replace('📊 Peso:', '').trim();
                     }
                     
-                    // Calcular o peso em arrobas e kg numerico
+                    // Calcular o peso em kg numerico
                     const numericWeightKg = parseFloat(weightValue.replace(/[^\d.,]/g, '').replace(',', '.'));
-                    let weightArrobaValue = '';
                     if (!isNaN(numericWeightKg)) {
-                        weightArrobaValue = (numericWeightKg * KG_TO_ARROBA).toFixed(2).replace('.', ',');
-                        
                         // Somar aos totais
                         totalPesoKg += numericWeightKg;
-                        totalPesoArroba += numericWeightKg * KG_TO_ARROBA;
                     }
                     
                     // Extrair apenas a hora da data/hora completa
@@ -1426,22 +1547,20 @@ function connectToBLEPrinter(device) {
                     
                     // Formatar como colunas fixas para evitar quebra de linha
                     // Limitar e padronizar o tamanho de cada campo
-                    const bracelet = measurement.bracelet.padEnd(10).substring(0, 10);
+                    const identificacao = measurement.bracelet.padEnd(14).substring(0, 14);
                     const weightKg = weightValue.replace(/[^\d., ]/g, '').trim().padEnd(8).substring(0, 8);
-                    const weightArroba = weightArrobaValue.padEnd(8).substring(0, 8);
                     
                     // Linha da tabela compactada para evitar quebra
-                    printData += `${bracelet}${weightKg}${weightArroba}${hora}\r\n`;
+                    printData += `${identificacao}${weightKg}${hora}\r\n`;
                 }
                 
                 // Formatar totais
-                const totalKgFormatado = totalPesoKg.toFixed(2).replace('.', ',');
-                const totalArrobaFormatado = totalPesoArroba.toFixed(2).replace('.', ',');
+                const totalKgFormatado = totalPesoKg.toFixed(1).replace('.', ',');
                 
                 // Rodapé centralizado com totais
                 printData += "\r\n";
                 printData += "--------------------------------\r\n";
-                printData += `TOTAL: ${totalKgFormatado} Kg (${totalArrobaFormatado} @)\r\n`;
+                printData += `TOTAL: ${totalKgFormatado} Kg\r\n`;
                 printData += "--------------------------------\r\n";
                 printData += "\x1B\x61\x01"; // ESC a 1 - Centralizar
                 printData += `Total: ${savedMeasurements.length} registros\r\n`;
@@ -1674,9 +1793,8 @@ function exportAsFile() {
                     <thead>
                         <tr>
                             <th>#</th>
-                            <th>Identificação/Brinco</th>
+                            <th>Identificação</th>
                             <th>Peso (Kg)</th>
-                            <th>Peso (@)</th>
                             <th>Data/Hora</th>
                         </tr>
                     </thead>
@@ -1700,7 +1818,6 @@ function exportAsFile() {
                     <td>${index + 1}</td>
                     <td>${measurement.bracelet}</td>
                     <td>${weightValue}</td>
-                    <td>${measurement.weightArroba}</td>
                     <td>${formattedDateTime}</td>
                 </tr>
             `;
@@ -2352,7 +2469,7 @@ function prepareDataForPrinting(peripheral) {
                     reportText += "LUMAK BALANCAS\n";
                     reportText += "--------------------------------\n";
                     reportText += "Data: " + new Date().toLocaleDateString('pt-BR') + "\n\n";
-                    reportText += "BRINCO      PESO(KG)   PESO(@)  HORA \n";
+                    reportText += "IDENTIFICAÇÃO      PESO(KG)   HR \n";
                     reportText += "--------------------------------\n";
                     
                     // Limitar a 15 itens para não sobrecarregar o buffer
@@ -2368,19 +2485,11 @@ function prepareDataForPrinting(peripheral) {
                             weightValue = weightValue.replace('📊 Peso:', '').trim();
                         }
                         
-                        // Calcular o peso em arrobas
-                        const numericWeightKg = parseFloat(weightValue.replace(/[^\d.,]/g, '').replace(',', '.'));
-                        let weightArrobaValue = '';
-                        if (!isNaN(numericWeightKg)) {
-                            weightArrobaValue = (numericWeightKg * KG_TO_ARROBA).toFixed(2).replace('.', ',');
-                        }
-                        
                         // Alinhar em colunas
-                        const bracelet = (item.bracelet || '').padEnd(10, ' ');
+                        const identificacao = (item.bracelet || '').padEnd(14, ' ');
                         const weight = (weightValue.replace(/[^\d., ]/g, '').trim() || '').padEnd(10, ' ');
-                        const weightArroba = (weightArrobaValue || '').padEnd(8, ' ');
                         
-                        reportText += bracelet + weight + weightArroba + "\n";
+                        reportText += identificacao + weight + "\n";
                     }
                     
                     // Rodapé
@@ -2621,31 +2730,58 @@ function showSettingsFeedback(message) {
     }, 3000);
 }
 
-// Função de processamento de peso recebido
+// Função para processar os valores de peso recebidos
 function processaValorRecebido(value) {
-    if (!weightValue) {
-        console.error("Elemento weightValue não está disponível!");
+    console.log('Valor recebido:', value);
+    
+    try {
+        // Se o valor estiver vazio, não fazer nada
+        if (!value || value.trim() === '') {
         return;
     }
     
-    console.log("Valor recebido:", value);
-    
-    // Extrair valor numérico (remover qualquer texto)
-    let valorNumerico = parseFloat(value.replace(/[^\d.-]/g, ''));
-    
-    // Formatar o valor em kg
-    let pesoKgFormatado = isNaN(valorNumerico) ? "0.00" : valorNumerico.toFixed(2);
-    weightValue.textContent = `📊 Peso: ${pesoKgFormatado} Kg`;
-    
-    // Calcular e formatar o valor em arrobas (1@ = 15kg)
-    if (weightValueArroba) {
-        let pesoArroba = isNaN(valorNumerico) ? 0 : valorNumerico * KG_TO_ARROBA;
-        let pesoArrobaFormatado = pesoArroba.toFixed(2).replace('.', ',');
-        weightValueArroba.textContent = `🐄 ${pesoArrobaFormatado} @`;
+        // Atualizar o peso em kg
+        if (weightValue) {
+            // Processar o valor para separar o número da unidade
+            const valorProcessado = value.trim();
+            
+            // Separar o número da unidade (kg)
+            let valorFormatado;
+            if (valorProcessado.toLowerCase().includes('kg')) {
+                // Se já tiver "kg", separar para formatar
+                const partes = valorProcessado.split('kg');
+                valorFormatado = partes[0].trim() + ' <span class="weight-unit">kg</span>';
+            } else {
+                // Se não tiver "kg", adicionar a unidade
+                valorFormatado = valorProcessado + ' <span class="weight-unit">kg</span>';
+            }
+            
+            // Atualizar o elemento com HTML para aplicar o estilo da unidade
+            weightValue.innerHTML = valorFormatado;
     }
     
     // Vibração suave quando novos dados são recebidos
     vibrate(50);
+        
+    } catch (error) {
+        console.error('Erro ao processar valor:', error);
+    }
+}
+
+// Função para atualizar elementos da interface baseado no status da conexão
+function updateConnectionStatus() {
+    // Mostra "0,0 kg" quando não há conexão, com kg menor
+    if (!isConnected && weightValue) {
+        weightValue.innerHTML = '0,0 <span class="weight-unit">kg</span>';
+        
+        // Verificar se há um último dispositivo conhecido
+        const lastDevice = loadLastConnectedDevice();
+        if (!lastDevice) {
+            updateConnectionStatusMessage('Não conectado à balança. Use o Menu > Conectar.', '');
+        }
+    } else if (isConnected) {
+        updateConnectionStatusMessage('Conectado à balança', 'status-connected');
+    }
 }
 
 // Função para detectar quando novos dados são recebidos
@@ -2672,10 +2808,22 @@ function atualizarStatusCalibracao() {
     if (isConnected && bleDevice) {
         calibrationStatus.textContent = 'Balança conectada. Pronto para calibrar.';
         calibrationStatus.className = 'status-message info';
+        
+        // Habilitar todos os botões e campos relacionados à conexão
+        if (btnSetDivision) btnSetDivision.disabled = false;
+        if (btnSetCapacity) btnSetCapacity.disabled = false;
+        if (divisaoInput) divisaoInput.disabled = false;
+        if (capacidadeInput) capacidadeInput.disabled = false;
         btnStartCalibration.disabled = false;
     } else {
         calibrationStatus.textContent = 'Conecte-se a uma balança para iniciar a calibração';
         calibrationStatus.className = 'status-message';
+        
+        // Desabilitar todos os botões e campos relacionados à conexão
+        if (btnSetDivision) btnSetDivision.disabled = true;
+        if (btnSetCapacity) btnSetCapacity.disabled = true;
+        if (divisaoInput) divisaoInput.disabled = true;
+        if (capacidadeInput) capacidadeInput.disabled = true;
         btnStartCalibration.disabled = true;
         btnSendWeight.disabled = true;
         btnConfirmCalibration.disabled = true;
@@ -2925,6 +3073,174 @@ function zeroScale() {
         },
         function(error) {
             console.error('Erro ao enviar comando de tare:', error);
+            // Se estamos na tela de calibração, mostra mensagem lá
+            if (document.getElementById('calibrationPage').classList.contains('active')) {
+                mostrarMensagemCalibracao('Erro ao zerar balança: ' + error, 'error');
+            } else {
+                // Se estamos na tela principal, mostra um alert
+                alert('Erro ao zerar balança: ' + error);
+            }
+            vibrate([100, 50, 100, 50, 100]); // Padrão de vibração de erro
+        }
+    );
+}
+
+// Função para enviar configuração de divisão/casas decimais
+function enviarConfigDivisao() {
+    if (!isConnected || !bleDevice) {
+        mostrarMensagemCalibracao('Não há conexão com a balança', 'error');
+        return;
+    }
+    
+    // Obter o valor da divisão
+    const divisao = divisaoInput.value.trim();
+    
+    if (!divisao) {
+        mostrarMensagemCalibracao('Informe o número de casas decimais', 'warning');
+        return;
+    }
+    
+    console.log('Enviando configuração de divisão:', divisao);
+    
+    try {
+        // Enviar comando no formato "casas:X"
+        const comando = `casas:${divisao}`;
+        
+        ble.write(
+            bleDevice.id,
+            SERVICE_UUID,
+            COMMAND_UUID,
+            stringToBytes(comando),
+            function() {
+                console.log('Comando de divisão enviado com sucesso');
+                mostrarMensagemCalibracao(`Divisão configurada para ${divisao} casa(s) decimal(is)`, 'success');
+                vibrate([50, 100, 50]); // Padrão de vibração de sucesso
+            },
+            function(error) {
+                console.error('Erro ao enviar comando de divisão:', error);
+                mostrarMensagemCalibracao('Erro ao configurar divisão: ' + error, 'error');
+                vibrate([100, 100, 300]); // Padrão de erro
+            }
+        );
+    } catch (error) {
+        console.error('Erro ao configurar divisão:', error);
+        mostrarMensagemCalibracao('Erro ao configurar divisão: ' + error.message, 'error');
+        vibrate([100, 100, 300]); // Padrão de erro
+    }
+}
+
+// Função para enviar configuração de capacidade máxima
+function enviarConfigCapacidade() {
+    if (!isConnected || !bleDevice) {
+        mostrarMensagemCalibracao('Não há conexão com a balança', 'error');
+        return;
+    }
+    
+    // Obter o valor da capacidade máxima
+    const capacidade = capacidadeInput.value.trim();
+    
+    if (!capacidade) {
+        mostrarMensagemCalibracao('Informe a capacidade máxima', 'warning');
+        return;
+    }
+    
+    console.log('Enviando configuração de capacidade máxima:', capacidade);
+    
+    try {
+        // Enviar comando no formato "capmax:X"
+        const comando = `capmax:${capacidade}`;
+        
+        ble.write(
+            bleDevice.id,
+            SERVICE_UUID,
+            COMMAND_UUID,
+            stringToBytes(comando),
+            function() {
+                console.log('Comando de capacidade máxima enviado com sucesso');
+                mostrarMensagemCalibracao(`Capacidade máxima configurada para ${capacidade} kg`, 'success');
+                vibrate([50, 100, 50]); // Padrão de vibração de sucesso
+            },
+            function(error) {
+                console.error('Erro ao enviar comando de capacidade máxima:', error);
+                mostrarMensagemCalibracao('Erro ao configurar capacidade máxima: ' + error, 'error');
+                vibrate([100, 100, 300]); // Padrão de erro
+            }
+        );
+    } catch (error) {
+        console.error('Erro ao configurar capacidade máxima:', error);
+        mostrarMensagemCalibracao('Erro ao configurar capacidade máxima: ' + error.message, 'error');
+        vibrate([100, 100, 300]); // Padrão de erro
+    }
+}
+
+// Função para atualizar o texto de status de conexão
+function updateConnectionStatusMessage(message, statusClass) {
+    if (!connectionStatusMessage) {
+        connectionStatusMessage = document.getElementById('connection-status-message');
+        if (!connectionStatusMessage) return;
+    }
+    
+    // Remover todas as classes de status anteriores
+    connectionStatusMessage.classList.remove('status-connecting', 'status-connected', 'status-error');
+    
+    // Definir a mensagem
+    connectionStatusMessage.textContent = message;
+    
+    // Adicionar a classe de status, se fornecida
+    if (statusClass) {
+        connectionStatusMessage.classList.add(statusClass);
+    }
+}
+
+// Nova função para zerar a balança (enviando o comando "zerar")
+function resetScale() {
+    if (!isConnected || !bleDevice) {
+        // Se estamos na tela de calibração, mostra mensagem lá
+        if (document.getElementById('calibrationPage').classList.contains('active')) {
+            mostrarMensagemCalibracao('Não há conexão com a balança', 'error');
+        } else {
+            // Se estamos na tela principal, mostra um alert
+            alert('Não há conexão com a balança');
+        }
+        return;
+    }
+    
+    console.log('Enviando comando para zerar a balança (reset)');
+    
+    // Enviar comando "zerar" para a balança
+    ble.write(
+        bleDevice.id,
+        SERVICE_UUID,
+        COMMAND_UUID,
+        stringToBytes('zerar'),
+        function() {
+            console.log('Comando de zerar enviado com sucesso');
+            // Se estamos na tela de calibração, mostra mensagem lá
+            if (document.getElementById('calibrationPage').classList.contains('active')) {
+                mostrarMensagemCalibracao('Balança zerada com sucesso!', 'success');
+            } else {
+                // Se estamos na tela principal, mostra um toast temporário
+                const toast = document.createElement('div');
+                toast.textContent = '✅ Balança zerada com sucesso!';
+                toast.style.position = 'fixed';
+                toast.style.bottom = '20px';
+                toast.style.left = '50%';
+                toast.style.transform = 'translateX(-50%)';
+                toast.style.backgroundColor = '#28a745';
+                toast.style.color = 'white';
+                toast.style.padding = '10px 20px';
+                toast.style.borderRadius = '5px';
+                toast.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+                toast.style.zIndex = '1000';
+                document.body.appendChild(toast);
+                setTimeout(() => {
+                    toast.remove();
+                }, 2000);
+            }
+            vibrate([100, 50, 100]); // Padrão de vibração de sucesso
+        },
+        function(error) {
+            console.error('Erro ao enviar comando de zerar:', error);
             // Se estamos na tela de calibração, mostra mensagem lá
             if (document.getElementById('calibrationPage').classList.contains('active')) {
                 mostrarMensagemCalibracao('Erro ao zerar balança: ' + error, 'error');

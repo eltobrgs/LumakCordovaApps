@@ -49,14 +49,14 @@
                             <button id="btn-connect" class="btn" data-page="connectionPage">
                                 <span class="material-icons">link</span> Conectar
                             </button>
-                            <button id="btn-scale" class="btn" data-page="scalePage">
-                                <span class="material-icons">scale</span> Balança
-                            </button>
                             <button id="btn-history" class="btn" data-page="historyPage">
                                 <span class="material-icons">history</span> Histórico
                             </button>
                             <button id="btn-settings" class="btn">
                                 <span class="material-icons">settings</span> Configuração
+                            </button>
+                            <button id="btn-back-to-scale" class="btn btn-back-to-scale" data-page="scalePage">
+                                <span class="material-icons">arrow_back</span> Voltar para Tela Inicial
                             </button>
                         </div>
                     </div>
@@ -88,25 +88,42 @@
             <!-- Página da Balança -->
             <div id="scalePage" class="page">
                 <div class="card">
-                    <h2>Dados da Balança</h2>
-                    <div id="weightDisplay" class="weight-display">
-                        <span id="weightValue">Aguardando dados...</span>
-                        <span id="weightValueArroba" class="weight-arroba">0,00 @</span>
+                    <h2>LUMAK - PESO</h2>
+                    <div id="connection-status-message" class="connection-status-message">
+                        Aguardando conexão com a balança...
+                    </div>
+                    <div class="weight-container">
+                        <div id="weightDisplay" class="weight-display">
+                            <span id="weightValue">0,0 kg</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Container especial para os botões Zerar e Tarar -->
+                    <div class="zerar-tarar-container">
+                        <button id="btn-zero-scale-main" class="btn btn-zerar">
+                            <span class="material-icons">equalizer</span>
+                            <span class="btn-text">Zerar</span>
+                        </button>
+                        <button id="btn-tare" class="btn btn-tarar">
+                            <span class="material-icons">exposure</span>
+                            <span class="btn-text">Tarar</span>
+                        </button>
+                    </div>
+                    
+                    <div class="button-group">
+                        <button id="btn-history-link" class="btn" data-page="historyPage">
+                            <span class="material-icons">history</span> Ver Histórico
+                        </button>
                     </div>
                     <div id="savedData" class="saved-data">
                         <!-- O conteúdo será adicionado dinamicamente pelo JavaScript -->
                     </div>
-                    <input type="text" id="braceletInput" placeholder="Número do Brinco ou Nome do Animal" class="input-field">
-                    <div class="button-group">
-                        <button id="btn-save" class="btn">
-                            <span class="material-icons">save</span> Salvar no App
-                        </button>
-                        <button id="btn-disconnect" class="btn">
-                            <span class="material-icons">bluetooth_disabled</span> Desconectar
-                        </button>
-                    </div>
-                    <button class="btn" data-page="homePage">
-                        <span class="material-icons">arrow_back</span> Voltar
+                    <input type="text" id="braceletInput" placeholder="Número ou nome de identificação" class="input-field">
+                    <button id="btn-save" class="btn btn-save-main">
+                        <span class="material-icons">save</span> Salvar no App
+                    </button>
+                    <button id="btn-menu" class="btn btn-menu">
+                        <span class="material-icons">menu</span> Menu
                     </button>
                 </div>
             </div>
@@ -188,7 +205,7 @@
                                 <div id="previewHeader2">LUMAK BALANCAS</div>
                                 <div>--------------------------------</div>
                                 <div>Data: DD/MM/YYYY</div>
-                                <div>BRINCO      PESO        DATA</div>
+                                <div>IDENTIFICAÇÃO    PESO        HR</div>
                                 <div>--------------------------------</div>
                                 <div>12345       000.45 Kg   DD/MM</div>
                             </div>
@@ -218,8 +235,34 @@
                     </div>
                     
                     <div class="calibration-steps">
-                        <div class="step" id="step1">
+                        <div class="step" id="step-capacity">
                             <div class="step-number">1</div>
+                            <div class="step-content">
+                                <p>Configure a capacidade máxima (kg)</p>
+                                <div class="form-group">
+                                    <input type="number" id="capacidadeInput" class="input-field" placeholder="Ex: 100" step="1" min="1">
+                                    <button id="btn-set-capacity" class="btn">
+                                        <span class="material-icons">send</span> Enviar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="step" id="step-division">
+                            <div class="step-number">2</div>
+                            <div class="step-content">
+                                <p>Configure a divisão (casas decimais)</p>
+                                <div class="form-group">
+                                    <input type="number" id="divisaoInput" class="input-field" placeholder="Ex: 1" step="1" min="0" max="5">
+                                    <button id="btn-set-division" class="btn">
+                                        <span class="material-icons">send</span> Enviar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="step" id="step1">
+                            <div class="step-number">3</div>
                             <div class="step-content">
                                 <p>Inicie o processo de calibração da balança</p>
                                 <button id="btn-start-calibration" class="btn" disabled>
@@ -229,7 +272,7 @@
                         </div>
                         
                         <div class="step" id="step2">
-                            <div class="step-number">2</div>
+                            <div class="step-number">4</div>
                             <div class="step-content">
                                 <p>Insira o peso de referência (em kg)</p>
                                 <div class="form-group">
@@ -242,7 +285,7 @@
                         </div>
                         
                         <div class="step" id="step3">
-                            <div class="step-number">3</div>
+                            <div class="step-number">5</div>
                             <div class="step-content">
                                 <p>Coloque o peso na balança e confirme a calibração</p>
                                 <button id="btn-confirm-calibration" class="btn" disabled>
@@ -252,7 +295,7 @@
                         </div>
                         
                         <div class="step" id="step4">
-                            <div class="step-number">4</div>
+                            <div class="step-number">6</div>
                             <div class="step-content">
                                 <p>Zerar a balança (tare)</p>
                                 <button id="btn-zero-scale" class="btn">

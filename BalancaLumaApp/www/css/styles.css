@@ -93,14 +93,30 @@ h1, h2 {
     cursor: not-allowed;
 }
 
+.weight-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 20px 0;
+}
+
 .weight-display {
-    background-color: var(--primary-color);
-    padding: 30px;
+    background-color: #2196F3;  /* Azul mais vibrante */
+    padding: 25px;
     border-radius: 12px;
     text-align: center;
-    margin: 20px 0;
-    font-size: 24px;
-    font-weight: bold;
+    font-size: 96px;  /* Dobro do tamanho anterior (48px) */
+    font-weight: 900;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    color: #000000;  /* Preto */
+}
+
+/* Estilo para a unidade "kg" */
+.weight-unit {
+    font-size: 30%;  /* Reduzido ainda mais para compensar o aumento do número */
+    font-weight: 700;
+    display: inline-block;
+    vertical-align: middle;
 }
 
 .input-field {
@@ -306,11 +322,47 @@ h1, h2 {
         width: 100%;
         justify-content: center;
     }
+    
+    /* Manter botões Zerar e Tarar na horizontal sempre */
+    #scalePage .button-group:first-of-type {
+        flex-direction: row !important;
+        gap: 5px;
+    }
+    
+    #btn-zero-scale-main, #btn-tare {
+        font-size: 14px;
+        padding: 10px 5px !important;
+    }
+    
+    /* Ajustar tamanho da fonte do display de peso para telas menores */
+    .weight-display {
+        font-size: 72px;
+        padding: 15px;
+    }
+}
+
+/* Para telas muito pequenas */
+@media (max-width: 360px) {
+    #btn-zero-scale-main, #btn-tare {
+        font-size: 12px;
+        padding: 8px 4px !important;
+    }
+    
+    #btn-zero-scale-main .material-icons,
+    #btn-tare .material-icons {
+        font-size: 18px;
+    }
+    
+    /* Ajustar tamanho da fonte do display de peso para telas muito pequenas */
+    .weight-display {
+        font-size: 60px;
+        padding: 10px;
+    }
 }
 
 /* Botão de zerar na tela principal */
 #btn-zero-scale-main {
-    background-color: #ffa726;  /* Laranja amber para destacar */
+    background-color: #ffa726;  /* Laranja amber */
     margin: 10px auto;
     display: block;
 }
@@ -397,4 +449,279 @@ h1, h2 {
 
 .bluetooth-dialog-buttons button:hover {
     background-color: #1976D2;
+}
+
+/* Botões da página da balança */
+#scalePage .button-group {
+    display: flex;
+    justify-content: space-between;
+    margin: 10px 0;
+}
+
+#scalePage .button-group .btn {
+    flex: 1;
+    margin: 0 5px;
+    justify-content: center;
+}
+
+/* Redefinição completa dos estilos para os botões Zerar e Tarar */
+/* Container especial apenas para os botões Zerar e Tarar */
+#scalePage .button-group:first-of-type {
+    display: flex !important; 
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 10px;
+    margin: 15px 0;
+    width: 100%;
+}
+
+/* Redefinição dos botões Zerar e Tarar */
+#btn-zero-scale-main, #btn-tare {
+    flex: 1 !important;
+    min-width: 0 !important;
+    padding: 12px 6px !important;
+    white-space: nowrap !important;
+    text-overflow: ellipsis !important;
+    overflow: hidden !important;
+    background-color: #ffa726;
+    border-radius: 8px;
+    color: #FFFFFF;
+    border: none;
+    font-weight: bold;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+#btn-zero-scale-main {
+    margin-right: 5px !important;
+}
+
+#btn-tare {
+    margin-left: 5px !important;
+}
+
+#btn-zero-scale-main:hover, #btn-tare:hover {
+    background-color: #fb8c00;
+}
+
+#btn-history-link {
+    width: 100%;
+    background-color: #42a5f5;  /* Azul mais claro */
+}
+
+#btn-history-link:hover {
+    background-color: #1e88e5;  /* Azul um pouco mais escuro no hover */
+}
+
+.btn-save-main {
+    display: block;
+    width: 100%;
+    margin: 10px 0;
+    background-color: #4caf50;  /* Verde */
+    justify-content: center;
+}
+
+.btn-save-main:hover {
+    background-color: #388e3c;  /* Verde mais escuro no hover */
+}
+
+.btn-menu {
+    display: block;
+    width: 100%;
+    margin: 10px 0;
+    background-color: #42a5f5;  /* Azul */
+    justify-content: center;
+}
+
+.btn-menu:hover {
+    background-color: #1e88e5;  /* Azul mais escuro no hover */
+}
+
+/* Outros ajustes */
+#braceletInput {
+    margin: 15px 0;
+}
+
+/* Garantir que o saved-data não apareça já que não estamos usando na nova interface */
+#savedData {
+    display: none;
+}
+
+/* Mensagem de conexão na tela da balança */
+.connection-message {
+    text-align: center;
+    padding: 10px;
+    margin: 10px 0;
+    color: #ffca28;
+    font-weight: bold;
+}
+
+/* Botão de conectar na tela da balança */
+.btn-connect-scale {
+    display: block;
+    width: 100%;
+    margin: 10px 0;
+    background-color: #1976d2; /* Azul mais escuro */
+    justify-content: center;
+}
+
+.btn-connect-scale:hover {
+    background-color: #1565c0; /* Azul ainda mais escuro no hover */
+}
+
+.btn-back-to-scale {
+    background-color: #ff7043;  /* Laranja avermelhado */
+}
+
+.btn-back-to-scale:hover {
+    background-color: #e64a19;  /* Laranja avermelhado mais escuro */
+}
+
+/* Estilo para toast (mensagem temporária) */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 16px;
+    z-index: 9999;
+    text-align: center;
+    animation: fadeInOut 0.3s ease-in-out;
+}
+
+@keyframes fadeInOut {
+    0% { opacity: 0; transform: translate(-50%, 20px); }
+    100% { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* Estilo para a mensagem de status da conexão */
+.connection-status-message {
+    text-align: center;
+    font-size: 14px;
+    color: #ffcc80;  /* Laranja claro */
+    margin-bottom: 8px;
+    padding: 4px 0;
+    font-weight: 500;
+}
+
+/* Estados diferentes de conexão */
+.status-connecting {
+    color: #64b5f6;  /* Azul claro */
+    animation: blink 1.5s infinite;
+}
+
+.status-connected {
+    color: #81c784;  /* Verde claro */
+}
+
+.status-error {
+    color: #ef9a9a;  /* Vermelho claro */
+}
+
+@keyframes blink {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+/* Container especial para os botões Zerar e Tarar */
+.zerar-tarar-container {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 10px;
+    margin: 15px 0;
+    width: 100%;
+}
+
+/* Estilo para os botões Zerar e Tarar */
+.btn-zerar, .btn-tarar {
+    flex: 1 1 50% !important; /* Exatamente 50% do espaço cada um */
+    min-width: 0 !important;
+    max-width: 50% !important; /* Limitar largura máxima em 50% */
+    padding: 12px 6px !important;
+    white-space: nowrap !important;
+    text-overflow: ellipsis !important;
+    overflow: hidden !important;
+    background-color: #ffa726;
+    border-radius: 8px;
+    color: #FFFFFF;
+    border: none;
+    font-weight: bold;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    height: 48px !important; /* Altura fixa para os dois botões */
+    box-sizing: border-box !important; /* Para garantir que o padding não afete o tamanho */
+}
+
+.btn-zerar {
+    margin-right: 5px !important;
+}
+
+.btn-tarar {
+    margin-left: 5px !important;
+}
+
+.zerar-tarar-container .material-icons {
+    margin-right: 5px !important;
+    font-size: 20px !important; /* Tamanho fixo para os ícones */
+}
+
+.btn-zerar:hover, .btn-tarar:hover {
+    background-color: #fb8c00;
+}
+
+/* Ajuste para telas menores - manter os botões lado a lado */
+@media (max-width: 600px) {
+    .zerar-tarar-container {
+        gap: 5px;
+    }
+    
+    .btn-zerar, .btn-tarar {
+        font-size: 14px;
+        padding: 10px 5px !important;
+        height: 44px !important; /* Altura um pouco menor para telas pequenas */
+    }
+    
+    .zerar-tarar-container .material-icons {
+        font-size: 18px !important;
+    }
+}
+
+/* Para telas muito pequenas */
+@media (max-width: 360px) {
+    .btn-zerar, .btn-tarar {
+        font-size: 12px;
+        padding: 8px 4px !important;
+        height: 40px !important; /* Altura ainda menor para telas muito pequenas */
+    }
+    
+    .zerar-tarar-container .material-icons {
+        font-size: 16px !important;
+        margin-right: 3px !important;
+    }
+}
+
+.zerar-tarar-container .btn-text {
+    flex: 1;
+    text-align: center;
+    font-size: 16px;
+}
+
+@media (max-width: 600px) {
+    .zerar-tarar-container .btn-text {
+        font-size: 14px;
+    }
+}
+
+@media (max-width: 360px) {
+    .zerar-tarar-container .btn-text {
+        font-size: 12px;
+    }
 } 
