@@ -2,6 +2,9 @@
 const SERVICE_UUID = "12345678-1234-5678-1234-56789abcdef0";
 const CHARACTERISTIC_UUID = "87654321-4321-8765-4321-abcdef987654";
 const COMMAND_UUID = "11223344-5566-7788-99aa-bbccddeeff00";
+const RECONNECT_INTERVAL = 5000; // Intervalo de reconexão em milissegundos (5 segundos)
+const ESP32_NAME_PREFIX = "balança"; // Prefixo para identificar dispositivos ESP32 da balança
+const CONNECTION_CHECK_INTERVAL = 3000; // Intervalo para verificar se a conexão ainda está ativa (3 segundos)
 
 // Variáveis globais
 let bleDevice = null;
@@ -9,6 +12,11 @@ let isConnected = false;
 let foundDevices = {};
 let permissionsRequested = false;
 let lastConnectedDeviceId = null; // Armazenar o ID do último dispositivo conectado
+let lastConnectedDeviceName = null; // Armazenar o nome do último dispositivo conectado
+let reconnectTimer = null; // Timer para reconexão automática
+let reconnectAttemptCount = 0; // Contador de tentativas de reconexão
+let connectionCheckTimer = null; // Timer para verificar se a conexão ainda está ativa
+let lastDataReceivedTime = 0; // Timestamp da última vez que dados foram recebidos
 
 // Variáveis para calibração
 let calibrando = false;
@@ -41,6 +49,7 @@ let previewHeader1 = null;
 let previewHeader2 = null;
 let btnZeroScaleMain = null;
 let connectionStatusMessage = null; // Novo elemento para status de conexão
+let calibrationWeightValue = null; // Novo elemento para peso na calibração
 
 // Elementos de calibração
 let calibrationStatus = null;
@@ -59,26 +68,86 @@ let btnSetCapacity = null;
 // Evento de inicialização
 document.addEventListener('deviceready', onDeviceReady, false);
 
+// Função para verificar se um dispositivo é um ESP32 baseado em seu nome ou ID
+function isESP32Device(device) {
+    if (!device) return false;
+    
+    // Verificar pelo nome (caso comum)
+    if (device.name) {
+        const lowerName = device.name.toLowerCase();
+        return lowerName.includes('esp') || 
+               lowerName.includes('balança') || 
+               lowerName.includes('balanca') || 
+               lowerName.includes('scale') ||
+               lowerName.includes('lumak');
+    }
+    
+    // Verificar pelo ID se não tiver nome
+    if (device.id) {
+        // Alguns ESPs usam endereços MAC específicos
+        return device.id.toUpperCase().includes('ESP') || 
+               device.id.toUpperCase().includes('24:0A:C4'); // Prefixo comum de MAC para ESP32
+    }
+    
+    return false;
+}
+
+// Função para obter um nome amigável para o dispositivo ESP32
+function getESP32FriendlyName(device) {
+    if (!device) return 'Dispositivo Desconhecido';
+    
+    // Se tiver um nome, usá-lo
+    if (device.name && device.name.trim() !== '') {
+        return device.name;
+    }
+    
+    // Se for um ESP32 (baseado em outras características), dar um nome amigável
+    if (isESP32Device(device)) {
+        return 'Balança ESP32';
+    }
+    
+    // Caso contrário, usar um nome genérico com parte do ID
+    if (device.id) {
+        const shortId = device.id.substring(0, 8);
+        return `Balança ${shortId}`;
+    }
+    
+    return 'Dispositivo Desconhecido';
+}
+
 // Função para salvar o ID do último dispositivo conectado
-function saveLastConnectedDevice(deviceId) {
-    console.log('Salvando último dispositivo conectado:', deviceId);
+function saveLastConnectedDevice(deviceId, deviceName) {
+    console.log('Salvando último dispositivo conectado:', deviceId, deviceName);
     lastConnectedDeviceId = deviceId;
+    
+    // Determinar o melhor nome para o dispositivo
+    if (deviceName && deviceName.trim() !== '' && deviceName.toLowerCase() !== 'dispositivo desconhecido') {
+        lastConnectedDeviceName = deviceName;
+    } else {
+        // Criar um objeto de dispositivo para usar com a função de nome amigável
+        const deviceObj = { id: deviceId, name: deviceName };
+        lastConnectedDeviceName = getESP32FriendlyName(deviceObj);
+    }
+    
     localStorage.setItem('lastConnectedDevice', deviceId);
+    localStorage.setItem('lastConnectedDeviceName', lastConnectedDeviceName);
 }
 
 // Função para carregar o ID do último dispositivo conectado
 function loadLastConnectedDevice() {
     const deviceId = localStorage.getItem('lastConnectedDevice');
-    console.log('Carregando último dispositivo conectado:', deviceId);
+    const deviceName = localStorage.getItem('lastConnectedDeviceName');
+    console.log('Carregando último dispositivo conectado:', deviceId, deviceName);
     lastConnectedDeviceId = deviceId;
-    return deviceId;
+    lastConnectedDeviceName = deviceName;
+    return { id: deviceId, name: deviceName };
 }
 
 // Função para tentar conectar automaticamente ao último dispositivo
 function tryAutoConnect() {
-    const deviceId = loadLastConnectedDevice();
+    const { id: deviceId, name: deviceName } = loadLastConnectedDevice();
     if (deviceId) {
-        console.log('Tentando conectar automaticamente ao dispositivo:', deviceId);
+        console.log('Tentando conectar automaticamente ao dispositivo:', deviceId, deviceName);
         setTimeout(() => {
             // Mostrar um toast informando a tentativa de conexão
             showToast('Conectando ao último dispositivo...', 3000);
@@ -98,16 +167,114 @@ function tryAutoConnect() {
                         console.error('Falha na conexão automática:', error);
                         showToast('Falha na conexão automática. Conecte manualmente.', 3000);
                         updateConnectionStatusMessage('Falha na conexão automática. Use o Menu > Conectar.', 'status-error');
+                        
+                        // Iniciar tentativas de reconexão periódicas
+                        startReconnectionAttempts();
                     }
                 );
             } catch (error) {
                 console.error('Erro ao tentar conexão automática:', error);
                 updateConnectionStatusMessage('Erro na conexão. Use o Menu > Conectar.', 'status-error');
+                
+                // Iniciar tentativas de reconexão periódicas
+                startReconnectionAttempts();
             }
         }, 2000); // Atraso para dar tempo de inicializar o BLE
     } else {
         updateConnectionStatusMessage('Não conectado à balança. Use o Menu > Conectar.', '');
     }
+}
+
+// Modificar a função startReconnectionAttempts para melhorar as mensagens de status
+function startReconnectionAttempts() {
+    // Limpar qualquer timer existente
+    if (reconnectTimer) {
+        clearInterval(reconnectTimer);
+    }
+    
+    // Resetar contador de tentativas
+    reconnectAttemptCount = 0;
+    
+    // Se não temos um dispositivo para reconectar, não iniciar tentativas
+    if (!lastConnectedDeviceId) {
+        console.log('Sem dispositivo anterior para reconectar');
+        updateConnectionStatusMessage('Não conectado à balança. Use o Menu > Conectar.', '');
+        return;
+    }
+    
+    const deviceName = lastConnectedDeviceName || 'dispositivo anterior';
+    
+    // Mostrar mensagem inicial de procura
+    updateConnectionStatusMessage(`Procurando ${deviceName}... Aguarde.`, 'status-searching');
+    
+    // Iniciar novo timer para tentar reconectar a cada RECONNECT_INTERVAL
+    reconnectTimer = setInterval(() => {
+        if (!isConnected && lastConnectedDeviceId) {
+            reconnectAttemptCount++;
+            console.log(`Tentativa de reconexão #${reconnectAttemptCount} ao dispositivo:`, lastConnectedDeviceId);
+            
+            // Atualizar mensagem com contador de tentativas para feedback visual claro
+            // Alternar entre "Procurando" e "Conectando" para dar feedback visual claro
+            if (reconnectAttemptCount % 2 === 1) {
+                // Tentativas ímpares: mostrar "Procurando"
+                updateConnectionStatusMessage(`Procurando ${deviceName}... (Tentativa ${reconnectAttemptCount})`, 'status-searching');
+            } else {
+                // Tentativas pares: mostrar "Conectando"
+                updateConnectionStatusMessage(`Conectando a ${deviceName}... (Tentativa ${reconnectAttemptCount})`, 'status-connecting');
+            }
+            
+            // Piscar o ícone Bluetooth para indicação visual da tentativa
+            flashBluetoothIcon();
+            
+            try {
+                ble.connect(lastConnectedDeviceId, 
+                    peripheral => {
+                        console.log('Reconectado com sucesso!');
+                        onConnectSuccess(peripheral);
+                        showToast('Reconectado com sucesso!', 2000);
+                        
+                        // Parar as tentativas de reconexão após sucesso
+                        clearInterval(reconnectTimer);
+                        reconnectTimer = null;
+                    }, 
+                    error => {
+                        console.error('Falha na tentativa de reconexão:', error);
+                        // Não atualizar a mensagem aqui, pois será atualizada no próximo ciclo
+                    }
+                );
+            } catch (error) {
+                console.error('Erro ao tentar reconexão:', error);
+                updateConnectionStatusMessage(`Erro na reconexão. Nova tentativa em ${RECONNECT_INTERVAL/1000}s...`, 'status-error');
+            }
+        } else if (isConnected && reconnectTimer) {
+            // Se já está conectado, parar as tentativas de reconexão
+            clearInterval(reconnectTimer);
+            reconnectTimer = null;
+        }
+    }, RECONNECT_INTERVAL);
+}
+
+// Função para piscar o ícone Bluetooth durante tentativas de reconexão
+function flashBluetoothIcon() {
+    const bluetoothIcon = document.getElementById('bluetoothStatus');
+    if (!bluetoothIcon) return;
+    
+    // Remover classes anteriores
+    bluetoothIcon.classList.remove('bluetooth-reconnecting', 'bluetooth-searching');
+    
+    // Determinar qual classe adicionar com base no contador de tentativas
+    if (reconnectAttemptCount % 2 === 1) {
+        // Tentativas ímpares: mostrar "Procurando"
+        bluetoothIcon.classList.add('bluetooth-searching');
+    } else {
+        // Tentativas pares: mostrar "Conectando"
+        bluetoothIcon.classList.add('bluetooth-reconnecting');
+    }
+    
+    // Remover a classe após 1 segundo para criar efeito de piscar
+    setTimeout(() => {
+        bluetoothIcon.classList.remove('bluetooth-reconnecting', 'bluetooth-searching');
+    }, 1000);
 }
 
 // Função para mostrar um toast (mensagem temporária)
@@ -149,7 +316,6 @@ function onDeviceReady() {
     deviceSelect = document.getElementById('deviceSelect');
     connectBtn = document.getElementById('connectBtn');
     weightValue = document.getElementById('weightValue');
-    weightValueArroba = document.getElementById('weightValueArroba');
     bluetoothStatus = document.getElementById('bluetoothStatus');
     braceletInput = document.getElementById('braceletInput');
     savedData = document.getElementById('savedData');
@@ -160,6 +326,7 @@ function onDeviceReady() {
     previewHeader2 = document.getElementById('previewHeader2');
     btnZeroScaleMain = document.getElementById('btn-zero-scale-main');
     connectionStatusMessage = document.getElementById('connection-status-message');
+    calibrationWeightValue = document.getElementById('calibrationWeightValue'); // Inicializar elemento de peso na calibração
     
     // Inicializar elementos de calibração
     calibrationStatus = document.getElementById('calibration-status');
@@ -177,6 +344,35 @@ function onDeviceReady() {
     
     // Adicionar eventos para os botões
     setupEventListeners();
+    
+    // Configurar ouvinte para eventos de desconexão BLE
+    document.addEventListener('ble.disconnect', function(event) {
+        console.log('Evento de desconexão BLE detectado:', event);
+        
+        // Verificar se o dispositivo desconectado é o que estamos usando
+        if (bleDevice && event.device_id === bleDevice.id) {
+            console.log('Nosso dispositivo foi desconectado');
+            
+            // Parar o timer de verificação de conexão
+            if (connectionCheckTimer) {
+                clearInterval(connectionCheckTimer);
+                connectionCheckTimer = null;
+            }
+            
+            // Atualizar estado
+            isConnected = false;
+            bluetoothStatus.classList.remove('connected');
+            
+            // Atualizar mensagem de status
+            updateConnectionStatusMessage('Dispositivo desconectado. Tentando reconectar...', 'status-error');
+            
+            // Iniciar tentativas de reconexão
+            startReconnectionAttempts();
+            
+            // Atualizar status da conexão
+            updateConnectionStatus();
+        }
+    }, false);
     
     // Solicitar permissões imediatamente ao iniciar
     setTimeout(() => {
@@ -854,16 +1050,23 @@ function updateDeviceList(devices) {
         deviceList.push(devices[id]);
     }
     
-    // Ordenar dispositivos: primeiro os que têm nome, depois por força de sinal (RSSI)
+    // Ordenar dispositivos: primeiro os ESP32/balanças, depois os que têm nome, por fim por força de sinal (RSSI)
     deviceList.sort((a, b) => {
-        // Primeiro critério: dispositivos com nome vêm primeiro
+        // Primeiro critério: dispositivos ESP32/balanças vêm primeiro
+        const aIsESP = isESP32Device(a);
+        const bIsESP = isESP32Device(b);
+        
+        if (aIsESP && !bIsESP) return -1;
+        if (!aIsESP && bIsESP) return 1;
+        
+        // Segundo critério: dispositivos com nome vêm primeiro
         const aHasName = a.name && a.name.trim() !== '';
         const bHasName = b.name && b.name.trim() !== '';
         
         if (aHasName && !bHasName) return -1;
         if (!aHasName && bHasName) return 1;
         
-        // Segundo critério: dispositivos com sinal mais forte vêm primeiro
+        // Terceiro critério: dispositivos com sinal mais forte vêm primeiro
         return (b.rssi || -100) - (a.rssi || -100);
     });
     
@@ -873,29 +1076,21 @@ function updateDeviceList(devices) {
         option.value = device.id;
         
         // Formatação melhorada do nome do dispositivo
-        let deviceName = '';
+        let deviceName = getESP32FriendlyName(device);
         
-        // Verificar se o dispositivo tem um nome
-        if (device.name && device.name.trim() !== '') {
-            deviceName = device.name;
+        // Destacar dispositivos que podem ser da balança
+        if (isESP32Device(device)) {
+            deviceName = '⭐ ' + deviceName + ' (balança)';
+        }
+        
+        // Adicionar indicação de força do sinal
+        let signalStrength = '';
+        if (device.rssi) {
+            if (device.rssi > -60) signalStrength = '📶 (sinal forte)';
+            else if (device.rssi > -80) signalStrength = '📶 (sinal médio)';
+            else signalStrength = '📶 (sinal fraco)';
             
-            // Destacar dispositivos que podem ser da balança
-            if (deviceName.toLowerCase().includes('balança') || 
-                deviceName.toLowerCase().includes('scale') || 
-                deviceName.toLowerCase().includes('weight') ||
-                deviceName.toLowerCase().includes('lumak')) {
-                deviceName = '⭐ ' + deviceName + ' (possível balança)';
-            }
-        } else {
-            // Formatação para dispositivos sem nome com indicação de força do sinal
-            let signalStrength = '';
-            if (device.rssi) {
-                if (device.rssi > -60) signalStrength = '📶 (sinal forte)';
-                else if (device.rssi > -80) signalStrength = '📶 (sinal médio)';
-                else signalStrength = '📶 (sinal fraco)';
-            }
-            
-            deviceName = 'Dispositivo ' + formatMacAddress(device.id) + ' ' + signalStrength;
+            deviceName += ' ' + signalStrength;
         }
         
         option.textContent = deviceName;
@@ -958,11 +1153,17 @@ function onConnectSuccess(peripheral) {
     isConnected = true;
     bluetoothStatus.classList.add('connected');
     
-    // Salvar o ID do dispositivo conectado para reconexão automática
-    saveLastConnectedDevice(peripheral.id);
+    // Obter um nome amigável para o dispositivo
+    const deviceName = getESP32FriendlyName(peripheral);
     
-    // Atualizar mensagem de status
-    updateConnectionStatusMessage('Conectado à balança', 'status-connected');
+    // Salvar o ID e nome do dispositivo conectado para reconexão automática
+    saveLastConnectedDevice(peripheral.id, deviceName);
+    
+    // Atualizar mensagem de status com o nome do dispositivo
+    updateConnectionStatusMessage(`Conectado à balança: ${deviceName}`, 'status-connected');
+    
+    // Iniciar verificação periódica da conexão
+    startConnectionCheck();
     
     // Tentar iniciar notificações da característica principal
     try {
@@ -973,6 +1174,9 @@ function onConnectSuccess(peripheral) {
             CHARACTERISTIC_UUID,
             data => {
                 try {
+                    // Atualizar timestamp de recepção de dados
+                    updateLastDataReceivedTime();
+                    
                     const value = bytesToString(data);
                     
                     // Verificar se está em modo de calibração
@@ -993,7 +1197,7 @@ function onConnectSuccess(peripheral) {
                     processaValorRecebido(value);
                     
                     // Atualizar mensagem de status quando dados são recebidos
-                    updateConnectionStatusMessage('Recebendo dados da balança', 'status-connected');
+                    updateConnectionStatusMessage(`Conectado à balança: ${deviceName}`, 'status-connected');
                 } catch (error) {
                     console.error("Erro ao processar dados:", error);
                 }
@@ -1008,17 +1212,26 @@ function onConnectSuccess(peripheral) {
     } catch (error) {
         console.log('Falha ao configurar notificações:', error);
         statusText.textContent = '✅ Conectado (erro nas notificações)';
-        updateConnectionStatusMessage('Conectado, mas com erros', 'status-error');
+        updateConnectionStatusMessage(`Conectado à ${deviceName}, mas com erros`, 'status-error');
     }
-    
-    // Não precisamos mais redirecionar para a página da balança,
-    // pois já estamos nela na interface nova
     
     // Atualizar status da conexão
     updateConnectionStatus();
     
     // Atualizar status da calibração
     atualizarStatusCalibracao();
+    
+    // Cancelar qualquer tentativa de reconexão em andamento
+    if (reconnectTimer) {
+        clearInterval(reconnectTimer);
+        reconnectTimer = null;
+        reconnectAttemptCount = 0;
+    }
+    
+    // Remover qualquer classe de animação do ícone Bluetooth
+    if (bluetoothStatus) {
+        bluetoothStatus.classList.remove('bluetooth-reconnecting');
+    }
 }
 
 function onConnectFailure(error) {
@@ -1051,6 +1264,13 @@ function bytesToString(buffer) {
 
 function disconnect() {
     console.log("Função disconnect chamada");
+    
+    // Parar a verificação de conexão
+    if (connectionCheckTimer) {
+        clearInterval(connectionCheckTimer);
+        connectionCheckTimer = null;
+    }
+    
     if (isConnected && bleDevice) {
         try {
             // Atualizar mensagem de status
@@ -1061,17 +1281,26 @@ function disconnect() {
                     console.log('Desconectado com sucesso');
                     vibrate([50, 100, 50]); // Padrão de desconexão
                     updateConnectionStatusMessage('Desconectado da balança', '');
+                    
+                    // Iniciar tentativas de reconexão
+                    startReconnectionAttempts();
                 },
                 error => {
                     console.error('Erro ao desconectar:', error);
                     vibrate([100, 100, 300]); // Padrão de erro
                     updateConnectionStatusMessage('Erro ao desconectar', 'status-error');
+                    
+                    // Iniciar tentativas de reconexão mesmo em caso de erro
+                    startReconnectionAttempts();
                 }
             );
         } catch (error) {
             console.error('Erro ao desconectar:', error);
             vibrate([100, 100, 300]); // Padrão de erro
             updateConnectionStatusMessage('Erro ao desconectar', 'status-error');
+            
+            // Iniciar tentativas de reconexão mesmo em caso de erro
+            startReconnectionAttempts();
         }
     }
     
@@ -1082,9 +1311,6 @@ function disconnect() {
     
     // Atualizar status da conexão
     updateConnectionStatus();
-    
-    // Permanecer na página da balança, apenas atualizar o status
-    // Não é mais necessário navegar para a homePage
 }
 
 // Função para atualizar elementos da interface baseado no status da conexão
@@ -1095,11 +1321,29 @@ function updateConnectionStatus() {
         
         // Verificar se há um último dispositivo conhecido
         const lastDevice = loadLastConnectedDevice();
-        if (!lastDevice) {
+        if (!lastDevice.id) {
             updateConnectionStatusMessage('Não conectado à balança. Use o Menu > Conectar.', '');
+        } else {
+            const deviceName = lastDevice.name || 'dispositivo anterior';
+            if (reconnectTimer) {
+                updateConnectionStatusMessage(`Não conectado. Tentando reconectar a ${deviceName}... (Tentativa #${reconnectAttemptCount})`, 'status-connecting');
+            } else {
+                updateConnectionStatusMessage(`Não conectado. Use o Menu > Conectar ou aguarde reconexão automática.`, 'status-error');
+            }
         }
-    } else if (isConnected) {
-        updateConnectionStatusMessage('Conectado à balança', 'status-connected');
+    } else if (isConnected && bleDevice) {
+        let deviceName = 'Dispositivo Desconhecido';
+        
+        // Tentar usar o nome do dispositivo atual
+        if (bleDevice.name && bleDevice.name.trim() !== '') {
+            deviceName = bleDevice.name;
+        } 
+        // Se não tiver, tentar usar o nome salvo
+        else if (lastConnectedDeviceName && lastConnectedDeviceName.trim() !== '') {
+            deviceName = lastConnectedDeviceName;
+        }
+        
+        updateConnectionStatusMessage(`Conectado à balança: ${deviceName}`, 'status-connected');
     }
 }
 
@@ -2735,55 +2979,49 @@ function processaValorRecebido(value) {
     console.log('Valor recebido:', value);
     
     try {
+        // Atualizar timestamp de dados recebidos
+        updateLastDataReceivedTime();
+        
         // Se o valor estiver vazio, não fazer nada
         if (!value || value.trim() === '') {
-        return;
-    }
-    
-        // Atualizar o peso em kg
+            return;
+        }
+        
+        // Processar o valor para separar o número da unidade
+        const valorProcessado = value.trim();
+        
+        // Separar o número da unidade (kg)
+        let valorFormatado;
+        if (valorProcessado.toLowerCase().includes('kg')) {
+            // Se já tiver "kg", separar para formatar
+            const partes = valorProcessado.split('kg');
+            valorFormatado = partes[0].trim() + ' <span class="weight-unit">kg</span>';
+        } else {
+            // Se não tiver "kg", adicionar a unidade
+            valorFormatado = valorProcessado + ' <span class="weight-unit">kg</span>';
+        }
+        
+        // Atualizar o elemento principal de peso (na tela inicial)
         if (weightValue) {
-            // Processar o valor para separar o número da unidade
-            const valorProcessado = value.trim();
-            
-            // Separar o número da unidade (kg)
-            let valorFormatado;
-            if (valorProcessado.toLowerCase().includes('kg')) {
-                // Se já tiver "kg", separar para formatar
-                const partes = valorProcessado.split('kg');
-                valorFormatado = partes[0].trim() + ' <span class="weight-unit">kg</span>';
-            } else {
-                // Se não tiver "kg", adicionar a unidade
-                valorFormatado = valorProcessado + ' <span class="weight-unit">kg</span>';
-            }
-            
             // Atualizar o elemento com HTML para aplicar o estilo da unidade
             weightValue.innerHTML = valorFormatado;
-    }
-    
-    // Vibração suave quando novos dados são recebidos
-    vibrate(50);
+        }
         
+        // Atualizar o elemento de peso na tela de calibração
+        if (calibrationWeightValue) {
+            // Para a tela de calibração, remove a unidade "kg"
+            const valorSemUnidade = valorProcessado;
+            calibrationWeightValue.innerHTML = valorSemUnidade;
+        }
+        
+        // Vibração suave quando novos dados são recebidos
+        vibrate(50);
     } catch (error) {
         console.error('Erro ao processar valor:', error);
     }
 }
 
 // Função para atualizar elementos da interface baseado no status da conexão
-function updateConnectionStatus() {
-    // Mostra "0,0 kg" quando não há conexão, com kg menor
-    if (!isConnected && weightValue) {
-        weightValue.innerHTML = '0,0 <span class="weight-unit">kg</span>';
-        
-        // Verificar se há um último dispositivo conhecido
-        const lastDevice = loadLastConnectedDevice();
-        if (!lastDevice) {
-            updateConnectionStatusMessage('Não conectado à balança. Use o Menu > Conectar.', '');
-        }
-    } else if (isConnected) {
-        updateConnectionStatusMessage('Conectado à balança', 'status-connected');
-    }
-}
-
 // Função para detectar quando novos dados são recebidos
 function onData(buffer) {
     // Processar os dados recebidos da balança
@@ -2948,36 +3186,41 @@ function enviarPesoCalibracao() {
 }
 
 function confirmarCalibracao() {
-    if (!isConnected || !bleDevice || !calibrando || !aguardandoConfirmacao) {
-        mostrarMensagemCalibracao('Processo de calibração não está na etapa de confirmação', 'error');
+    if (!isConnected || !bleDevice) {
+        mostrarMensagemCalibracao('Não há conexão com a balança', 'error');
         return;
     }
     
-    console.log('Confirmando calibração');
+    // Obter o valor digitado na caixa de referência
+    const valorDigitado = refWeightInput.value.trim();
+    
+    if (!valorDigitado) {
+        mostrarMensagemCalibracao('Informe um valor de referência', 'warning');
+        return;
+    }
+    
+    console.log('Enviando valor para calibração:', valorDigitado);
     
     try {
-        // Enviar comando "ok" para confirmar a calibração
+        // Enviar apenas o valor digitado sem texto adicional
         ble.write(
             bleDevice.id,
             SERVICE_UUID,
             COMMAND_UUID,
-            stringToBytes('ok'),
+            stringToBytes(valorDigitado),
             function() {
-                console.log('Comando de confirmação enviado com sucesso');
+                console.log('Valor para calibração enviado com sucesso');
                 
                 // Exibir mensagem para o usuário
-                mostrarMensagemCalibracao('Aguardando a balança processar a calibração...', 'info');
+                mostrarMensagemCalibracao('Valor enviado com sucesso', 'success');
                 
                 // Vibrar para indicar sucesso
                 vibrate([50, 100, 50]);
                 
-                // Aguardar resposta da balança (será processada por onData)
+                // Mostrar feedback imediato
                 setTimeout(function() {
-                    // Se não recebemos resposta em 5 segundos, assumimos sucesso
-                    if (calibrando) {
-                        finalizarCalibracao();
-                    }
-                }, 5000);
+                    mostrarMensagemCalibracao('Calibração concluída!', 'success');
+                }, 500);
             },
             function(error) {
                 console.error('Erro ao enviar confirmação:', error);
@@ -3100,20 +3343,18 @@ function enviarConfigDivisao() {
         return;
     }
     
-    console.log('Enviando configuração de divisão:', divisao);
+    console.log('Enviando valor:', divisao);
     
     try {
-        // Enviar comando no formato "casas:X"
-        const comando = `casas:${divisao}`;
-        
+        // Enviar exatamente o valor digitado, sem texto adicional
         ble.write(
             bleDevice.id,
             SERVICE_UUID,
             COMMAND_UUID,
-            stringToBytes(comando),
+            stringToBytes(divisao),
             function() {
-                console.log('Comando de divisão enviado com sucesso');
-                mostrarMensagemCalibracao(`Divisão configurada para ${divisao} casa(s) decimal(is)`, 'success');
+                console.log('Valor enviado com sucesso');
+                mostrarMensagemCalibracao('Valor enviado com sucesso', 'success');
                 vibrate([50, 100, 50]); // Padrão de vibração de sucesso
             },
             function(error) {
@@ -3147,17 +3388,15 @@ function enviarConfigCapacidade() {
     console.log('Enviando configuração de capacidade máxima:', capacidade);
     
     try {
-        // Enviar comando no formato "capmax:X"
-        const comando = `capmax:${capacidade}`;
-        
+        // Enviar apenas o valor da capacidade sem texto adicional
         ble.write(
             bleDevice.id,
             SERVICE_UUID,
             COMMAND_UUID,
-            stringToBytes(comando),
+            stringToBytes(capacidade),
             function() {
-                console.log('Comando de capacidade máxima enviado com sucesso');
-                mostrarMensagemCalibracao(`Capacidade máxima configurada para ${capacidade} kg`, 'success');
+                console.log('Valor enviado com sucesso');
+                mostrarMensagemCalibracao(`Valor enviado com sucesso`, 'success');
                 vibrate([50, 100, 50]); // Padrão de vibração de sucesso
             },
             function(error) {
@@ -3253,4 +3492,76 @@ function resetScale() {
     );
 }
 
+// Função para verificar periodicamente se a conexão ainda está ativa
+function startConnectionCheck() {
+    // Limpar qualquer timer existente
+    if (connectionCheckTimer) {
+        clearInterval(connectionCheckTimer);
+    }
     
+    // Inicializar o timestamp de última recepção de dados
+    lastDataReceivedTime = Date.now();
+    
+    // Iniciar o timer de verificação
+    connectionCheckTimer = setInterval(() => {
+        // Se estamos supostamente conectados
+        if (isConnected && bleDevice) {
+            const currentTime = Date.now();
+            const timeSinceLastData = currentTime - lastDataReceivedTime;
+            
+            // Se não recebemos dados há mais de 10 segundos, verificar a conexão
+            if (timeSinceLastData > 10000) {
+                console.log(`Sem dados recebidos há ${timeSinceLastData/1000} segundos. Verificando conexão...`);
+                
+                // Tentar ler uma característica para verificar se a conexão ainda está ativa
+                ble.read(
+                    bleDevice.id,
+                    SERVICE_UUID,
+                    CHARACTERISTIC_UUID,
+                    () => {
+                        // Conexão ainda está ativa
+                        console.log('Conexão verificada: dispositivo ainda conectado');
+                        // Atualizar o timestamp para evitar verificações frequentes
+                        lastDataReceivedTime = Date.now();
+                    },
+                    error => {
+                        // Falha na leitura, provavelmente a conexão foi perdida
+                        console.error('Falha na verificação de conexão:', error);
+                        console.log('Dispositivo parece estar desconectado. Atualizando status...');
+                        
+                        // Marcar como desconectado
+                        handleDisconnection('Conexão perdida. Dispositivo desligado ou fora de alcance.');
+                    }
+                );
+            }
+        }
+    }, CONNECTION_CHECK_INTERVAL);
+}
+
+// Função para lidar com a desconexão
+function handleDisconnection(message) {
+    // Atualizar estado
+    isConnected = false;
+    bluetoothStatus.classList.remove('connected');
+    
+    // Atualizar mensagem de status
+    updateConnectionStatusMessage(message, 'status-error');
+    
+    // Atualizar display de peso
+    if (weightValue) {
+        weightValue.innerHTML = '0,0 <span class="weight-unit">kg</span>';
+    }
+    
+    // Iniciar tentativas de reconexão
+    startReconnectionAttempts();
+    
+    // Atualizar status da conexão
+    updateConnectionStatus();
+}
+
+// Função para registrar que dados foram recebidos
+function updateLastDataReceivedTime() {
+    lastDataReceivedTime = Date.now();
+}
+
+     

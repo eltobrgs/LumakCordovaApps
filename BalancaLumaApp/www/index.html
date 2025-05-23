@@ -100,11 +100,11 @@
                     
                     <!-- Container especial para os botões Zerar e Tarar -->
                     <div class="zerar-tarar-container">
-                        <button id="btn-zero-scale-main" class="btn btn-zerar">
+                        <button id="btn-zero-scale-main" class="btn-zerar">
                             <span class="material-icons">equalizer</span>
                             <span class="btn-text">Zerar</span>
                         </button>
-                        <button id="btn-tare" class="btn btn-tarar">
+                        <button id="btn-tare" class="btn-tarar">
                             <span class="material-icons">exposure</span>
                             <span class="btn-text">Tarar</span>
                         </button>
@@ -227,87 +227,47 @@
             <!-- Página de Calibração -->
             <div id="calibrationPage" class="page">
                 <div class="card">
-                    <h2>Calibração da Balança</h2>
-                    <p class="settings-description">Calibre sua balança seguindo os passos abaixo:</p>
+                    <h2>Calibração</h2>
                     
-                    <div id="calibration-status" class="status-message">
-                        Conecte-se a uma balança para iniciar a calibração
+                    <!-- Box de visualização de peso semelhante à tela inicial (substitui a área circulada em vermelho) -->
+                    <div class="weight-container">
+                        <div id="calibrationWeightDisplay" class="weight-display">
+                            <span id="calibrationWeightValue">0,0</span>
+                        </div>
                     </div>
                     
                     <div class="calibration-steps">
                         <div class="step" id="step-capacity">
-                            <div class="step-number">1</div>
                             <div class="step-content">
-                                <p>Configure a capacidade máxima (kg)</p>
+                                <p>Configure Capacidade,casas decimais e divisão. exemplos:</p>
+                                <p>Cap. 3000kg , 1 casa, e: 0.5kg = "3000.5"</p>
+                                <p>Cap. 15.000, 3 casas, e: 5g = "15.005"</p>
                                 <div class="form-group">
-                                    <input type="number" id="capacidadeInput" class="input-field" placeholder="Ex: 100" step="1" min="1">
+                                    <input type="text" id="capacidadeInput" class="input-field" placeholder="15,005">
                                     <button id="btn-set-capacity" class="btn">
-                                        <span class="material-icons">send</span> Enviar
+                                        <span class="material-icons">send</span> Calibrar sem peso
                                     </button>
                                 </div>
-                            </div>
-                        </div>
-                        
-                        <div class="step" id="step-division">
-                            <div class="step-number">2</div>
-                            <div class="step-content">
-                                <p>Configure a divisão (casas decimais)</p>
-                                <div class="form-group">
-                                    <input type="number" id="divisaoInput" class="input-field" placeholder="Ex: 1" step="1" min="0" max="5">
-                                    <button id="btn-set-division" class="btn">
-                                        <span class="material-icons">send</span> Enviar
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="step" id="step1">
-                            <div class="step-number">3</div>
-                            <div class="step-content">
-                                <p>Inicie o processo de calibração da balança</p>
-                                <button id="btn-start-calibration" class="btn" disabled>
-                                    <span class="material-icons">play_arrow</span> Iniciar Calibração
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div class="step" id="step2">
-                            <div class="step-number">4</div>
-                            <div class="step-content">
-                                <p>Insira o peso de referência (em kg)</p>
-                                <div class="form-group">
-                                    <input type="number" id="refWeight" class="input-field" placeholder="Ex: 5.0" step="0.01" min="0.1" disabled>
-                                    <button id="btn-send-weight" class="btn" disabled>
-                                        <span class="material-icons">send</span> Enviar
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="step" id="step3">
-                            <div class="step-number">5</div>
-                            <div class="step-content">
-                                <p>Coloque o peso na balança e confirme a calibração</p>
-                                <button id="btn-confirm-calibration" class="btn" disabled>
-                                    <span class="material-icons">check</span> Confirmar
-                                </button>
                             </div>
                         </div>
                         
                         <div class="step" id="step4">
-                            <div class="step-number">6</div>
                             <div class="step-content">
-                                <p>Zerar a balança (tare)</p>
-                                <button id="btn-zero-scale" class="btn">
-                                    <span class="material-icons">equalizer</span> Zero
-                                </button>
+                                <p>Digite o valor da referencia, coloque o</p>
+                                <p>Sobre a plataforma</p>
+                                <div class="form-group">
+                                    <input type="text" id="refWeight" class="input-field" placeholder="5.000">
+                                    <button id="btn-confirm-calibration" class="btn">
+                                        <span class="material-icons">check</span> Calibra Span
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
                     
                     <div style="margin-top: 20px;">
-                        <button class="btn" data-page="settingsPage">
-                            <span class="material-icons">arrow_back</span> Voltar
+                        <button class="btn btn-menu" data-page="settingsPage">
+                            <span class="material-icons">menu</span> Menu
                         </button>
                     </div>
                 </div>
